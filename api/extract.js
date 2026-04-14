@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+const Anthropic = require("@anthropic-ai/sdk");
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -8,8 +8,7 @@ const KNOWN_SUPPLIERS = [
   "CS Chin Seng Frozen Seafood","LTF"
 ];
 
-export default async function handler(req, res) {
-  // CORS
+module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -30,23 +29,16 @@ export default async function handler(req, res) {
     const message = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
-      system: `You are an invoice OCR tool for a Malaysian F&B restaurant group. 
-You MUST respond with ONLY a raw JSON object. No prose, no markdown, no code fences. 
-Start your response with { and end with }. Nothing before or after.`,
+      system: "You are an invoice OCR tool. Respond with ONLY a raw JSON object. No markdown, no code fences. Start with { and end with }.",
       messages: [{
         role: "user",
         content: [
           contentBlock,
           {
             type: "text",
-            text: `Extract invoice data. Return ONLY this JSON with real values:
+            text: `Extract invoice data. Return ONLY this JSON with real values filled in:
 {"supplier":"string","invoice_no":"string","date":"DD/MM/YYYY","items":[{"desc":"string","qty":"string","amount":0}],"subtotal":0,"tax":0,"total":0,"notes":"string"}
-
-Rules:
-- amounts must be numbers, not strings
-- date format: DD/MM/YYYY
-- if unclear, use null
-- match supplier to one of these if possible: ${KNOWN_SUPPLIERS.join(", ")}`
+Rules: amounts are numbers. Date format DD/MM/YYYY. If unclear use null. Known suppliers: ${KNOWN_SUPPLIERS.join(", ")}`
           }
         ]
       }]

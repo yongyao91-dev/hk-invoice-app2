@@ -1,7 +1,6 @@
 {
   "name": "hk-invoice-app",
   "version": "1.0.0",
-  "description": "HK Group Invoice Capture App",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0"
   }
