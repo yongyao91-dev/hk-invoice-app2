@@ -30,7 +30,7 @@ module.exports = async function handler(req, res) {
 
     const message = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
+      max_tokens: 2048,
       system: "You are an invoice OCR tool. Respond with ONLY a raw JSON object. No markdown, no code fences. Start with { and end with }.",
       messages: [{
         role: "user",
@@ -38,9 +38,9 @@ module.exports = async function handler(req, res) {
           contentBlock,
           {
             type: "text",
-            text: `Extract invoice data. Return ONLY this JSON with real values filled in:
-{"supplier":"string","invoice_no":"string","date":"DD/MM/YYYY","items":[{"desc":"string","qty":"string","amount":0}],"subtotal":0,"tax":0,"total":0,"notes":"string"}
-Rules: amounts are numbers. Date format DD/MM/YYYY. If unclear use null. Known suppliers: ${KNOWN_SUPPLIERS.join(", ")}`
+            text: `Extract invoice data. Return ONLY this JSON:
+{"supplier":"","invoice_no":"","date":"","items":[{"desc":"","qty":"","amount":0}],"total":0,"notes":""}
+Rules: date format DD/MM/YYYY, amounts are numbers, max 10 items, keep descriptions short (under 30 chars). Known suppliers: ${KNOWN_SUPPLIERS.join(", ")}`
           }
         ]
       }]
