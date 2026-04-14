@@ -1,11 +1,7 @@
 const { createClient } = require("@supabase/supabase-js");
 
-function getSupabase() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_ANON_KEY;
-  if (!url || !key) throw new Error("Supabase env vars not set");
-  return createClient(url, key);
-}
+const SUPABASE_URL = process.env.SUPABASE_URL || "https://dlkyyifvpmfcglqvbrdy.supabase.co";
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsa3l5aWZ2cG1mY2dscXZicmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNTAzMTksImV4cCI6MjA5MTcyNjMxOX0.sTIodEMrWaeCHDJEwhIJurJdEy3iRlBqGEzmVJKHY_Q";
 
 module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -14,9 +10,8 @@ module.exports = async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
 
   try {
-    const supabase = getSupabase();
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // GET — fetch all invoices
     if (req.method === "GET") {
       const { data, error } = await supabase
         .from("invoices")
@@ -26,7 +21,6 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ success: true, data });
     }
 
-    // POST — save new invoice
     if (req.method === "POST") {
       const invoice = req.body;
       if (!invoice) return res.status(400).json({ error: "No data" });
@@ -47,7 +41,6 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ success: true, data: data[0] });
     }
 
-    // DELETE — delete invoice by id
     if (req.method === "DELETE") {
       const { id } = req.body;
       if (!id) return res.status(400).json({ error: "No id" });
