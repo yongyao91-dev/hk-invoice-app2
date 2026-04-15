@@ -5,13 +5,14 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIs
 
 module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    // GET — fetch all invoices
     if (req.method === "GET") {
       const { data, error } = await supabase
         .from("invoices")
@@ -21,6 +22,7 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ success: true, data });
     }
 
+    // POST — save new invoice
     if (req.method === "POST") {
       const invoice = req.body;
       if (!invoice) return res.status(400).json({ error: "No data" });
@@ -34,6 +36,7 @@ module.exports = async function handler(req, res) {
           items: invoice.items,
           total: invoice.total,
           notes: invoice.notes,
+          payment_status: invoice.payment_status || "unpaid",
           saved_at: new Date().toISOString()
         }])
         .select();
@@ -41,6 +44,19 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ success: true, data: data[0] });
     }
 
+    // PATCH — update payment status
+    if (req.method === "PATCH") {
+      const { id, payment_status } = req.body;
+      if (!id) return res.status(400).json({ error: "No id" });
+      const { error } = await supabase
+        .from("invoices")
+        .update({ payment_status })
+        .eq("id", id);
+      if (error) throw error;
+      return res.status(200).json({ success: true });
+    }
+
+    // DELETE
     if (req.method === "DELETE") {
       const { id } = req.body;
       if (!id) return res.status(400).json({ error: "No id" });

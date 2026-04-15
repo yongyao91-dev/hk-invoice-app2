@@ -121,6 +121,18 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;displa
 .mfrow .v{font-family:'DM Mono',monospace;color:var(--text);text-align:right}
 .del-btn{width:100%;padding:12px;background:rgba(224,85,85,.12);border:1px solid var(--err);border-radius:var(--r);color:var(--err);font-family:'Syne',sans-serif;font-size:12px;font-weight:800;cursor:pointer;margin-top:16px;letter-spacing:.04em;transition:all .15s}
 .del-btn:hover{background:rgba(224,85,85,.2)}
+.pstatus{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:800;letter-spacing:.05em;cursor:pointer;border:1.5px solid var(--border);background:var(--s2);color:var(--muted);transition:all .15s}
+.pstatus.unpaid{border-color:#e05555;background:rgba(224,85,85,.1);color:#e05555}
+.pstatus.cash{border-color:#e8c547;background:rgba(232,197,71,.1);color:#e8c547}
+.pstatus.bank{border-color:#4caf7d;background:rgba(76,175,125,.1);color:#4caf7d}
+.pstatus.cheque{border-color:#7c9eff;background:rgba(124,158,255,.1);color:#7c9eff}
+.pay-btns{display:flex;gap:6px;flex-wrap:wrap;padding:12px 14px;border-top:1px solid var(--border)}
+.pay-btn{flex:1;min-width:80px;padding:8px 6px;border-radius:8px;font-family:'Syne',sans-serif;font-size:11px;font-weight:800;cursor:pointer;border:1.5px solid var(--border);background:var(--s2);color:var(--muted);transition:all .15s;text-align:center;letter-spacing:.03em}
+.pay-btn:hover{border-color:var(--accent);color:var(--accent)}
+.pay-btn.active-unpaid{border-color:#e05555;background:rgba(224,85,85,.1);color:#e05555}
+.pay-btn.active-cash{border-color:#e8c547;background:rgba(232,197,71,.1);color:#e8c547}
+.pay-btn.active-bank{border-color:#4caf7d;background:rgba(76,175,125,.1);color:#4caf7d}
+.pay-btn.active-cheque{border-color:#7c9eff;background:rgba(124,158,255,.1);color:#7c9eff}
 .toast{position:fixed;bottom:calc(20px + var(--safe-bottom));left:50%;transform:translateX(-50%) translateY(80px);background:var(--ok);color:#fff;padding:9px 20px;border-radius:20px;font-size:12px;font-weight:800;z-index:999;transition:transform .3s;white-space:nowrap;pointer-events:none}
 .toast.on{transform:translateX(-50%) translateY(0)}
 .loading-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;flex-direction:column;gap:12px}
@@ -186,6 +198,12 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;displa
       </div>
       <div class="rc-fields" id="rc-fields"></div>
       <div class="items-block" id="rc-items"></div>
+      <div class="pay-btns">
+        <button class="pay-btn active-unpaid" id="pay-unpaid" onclick="setPayStatus('unpaid')">🔴 Unpaid</button>
+        <button class="pay-btn" id="pay-cash" onclick="setPayStatus('cash')">🟡 Cash</button>
+        <button class="pay-btn" id="pay-bank" onclick="setPayStatus('bank')">🟢 Bank</button>
+        <button class="pay-btn" id="pay-cheque" onclick="setPayStatus('cheque')">🔵 Cheque</button>
+      </div>
       <div class="rc-actions">
         <button class="btn-confirm" id="btn-confirm" onclick="confirmSave()">✓ Confirm & Save</button>
         <button class="btn-discard" onclick="discardResult()">Discard</button>
@@ -248,6 +266,15 @@ let activeId = null;
 let extracted = null;
 let log = [];
 let progTimer = null;
+let payStatus = 'unpaid';
+
+function setPayStatus(status) {
+  payStatus = status;
+  ['unpaid','cash','bank','cheque'].forEach(s => {
+    const btn = document.getElementById('pay-'+s);
+    if(btn) btn.className = 'pay-btn' + (s===status ? ' active-'+s : '');
+  });
+}
 
 // ── INIT ──
 async function init() {
@@ -338,6 +365,7 @@ function clearFile() {
   document.getElementById('result-card').classList.remove('on');
   document.getElementById('progress-wrap').classList.remove('on');
   document.getElementById('fileInput').value = '';
+  payStatus = 'unpaid';
 }
 
 // ── EXTRACT ──
@@ -383,15 +411,51 @@ function renderResult(d, fname) {
     <div class="frow"><span class="fkey">Supplier</span><span class="fval"><input id="e-supplier" value="${d.supplier||''}" placeholder="—"></span></div>
     <div class="frow"><span class="fkey">Inv No.</span><span class="fval"><input id="e-invno" value="${d.invoice_no||''}" placeholder="—"></span></div>
     <div class="frow"><span class="fkey">Date</span><span class="fval"><input id="e-date" value="${d.date||''}" placeholder="DD/MM/YYYY"></span></div>
-    <div class="frow"><span class="fkey">Total</span><span class="fval big"><input id="e-total" value="${Number(d.total||0).toFixed(2)}" type="number"></span></div>
     ${d.notes?`<div class="frow"><span class="fkey">Notes</span><span class="fval" style="font-size:11px;color:var(--muted)">${d.notes}</span></div>`:''}
   `;
   const items = (d.items||[]).filter(i=>i.desc||i.amount);
   document.getElementById('rc-items').innerHTML = items.length ? `
-    <div class="items-title">Line Items</div>
-    ${items.map(i=>`<div class="irow"><span class="idesc">${i.desc||'—'}</span><span class="iqty">${i.qty||''}</span><span class="iamt">RM ${Number(i.amount||0).toFixed(2)}</span></div>`).join('')}
-  ` : '';
+    <div class="items-title">Line Items <span style="color:var(--muted);font-size:9px;font-weight:400;font-family:'DM Mono',monospace">— tap amounts to edit</span></div>
+    ${items.map((i,idx)=>`
+    <div class="irow" style="align-items:center">
+      <span class="idesc">${i.desc||'—'}</span>
+      <span class="iqty">${i.qty||''}</span>
+      <span class="iamt"><input 
+        type="number" 
+        id="iamt-${idx}"
+        value="${Number(i.amount||0).toFixed(2)}"
+        oninput="recalcTotal()"
+        style="background:transparent;border:none;border-bottom:1px dashed var(--border);color:var(--accent);font-family:'DM Mono',monospace;font-size:12px;text-align:right;width:72px;outline:none;padding:2px 0"
+      ></span>
+    </div>`).join('')}
+    <div class="irow" style="border-top:1px solid var(--border);margin-top:4px;padding-top:6px">
+      <span class="idesc" style="font-weight:700;color:var(--text)">TOTAL</span>
+      <span class="iqty"></span>
+      <span class="iamt" style="color:var(--accent);font-size:14px;font-weight:500" id="e-total-display">RM ${Number(d.total||0).toFixed(2)}</span>
+    </div>
+  ` : `
+    <div class="items-title">Total</div>
+    <div class="irow">
+      <span class="idesc">Invoice Total</span>
+      <span class="iqty"></span>
+      <span class="iamt"><input type="number" id="iamt-0" value="${Number(d.total||0).toFixed(2)}" oninput="recalcTotal()" style="background:transparent;border:none;border-bottom:1px dashed var(--border);color:var(--accent);font-family:'DM Mono',monospace;font-size:14px;text-align:right;width:80px;outline:none;padding:2px 0"></span>
+    </div>
+  `;
+  // store item count for recalc
+  window._itemCount = items.length || 1;
+  window._extractedTotal = Number(d.total||0);
   document.getElementById('result-card').classList.add('on');
+}
+
+function recalcTotal() {
+  let t = 0;
+  for(let i=0; i<window._itemCount; i++) {
+    const el = document.getElementById('iamt-'+i);
+    if(el) t += parseFloat(el.value)||0;
+  }
+  const disp = document.getElementById('e-total-display');
+  if(disp) disp.textContent = 'RM ' + t.toFixed(2);
+  window._extractedTotal = t;
 }
 
 function showExtractError(msg) {
@@ -410,14 +474,21 @@ async function confirmSave() {
   btn.disabled = true; btn.textContent = 'Saving…';
   showLoading('Saving to database…');
   try {
+    // rebuild items with edited amounts
+    const editedItems = (extracted?.items||[]).filter(i=>i.desc||i.amount).map((i,idx)=>{
+      const el = document.getElementById('iamt-'+idx);
+      return { ...i, amount: el ? parseFloat(el.value)||0 : i.amount };
+    });
+    const editedTotal = window._extractedTotal || editedItems.reduce((s,i)=>s+i.amount,0);
     const invoice = {
       outlet,
       supplier: document.getElementById('e-supplier')?.value || '',
       invoice_no: document.getElementById('e-invno')?.value || '',
       date: document.getElementById('e-date')?.value || '',
-      total: parseFloat(document.getElementById('e-total')?.value || '0'),
-      items: extracted?.items || [],
-      notes: extracted?.notes || ''
+      total: editedTotal,
+      items: editedItems,
+      notes: extracted?.notes || '',
+      payment_status: payStatus
     };
     const saved = await saveToDb(invoice);
     log.unshift(saved);
@@ -435,6 +506,10 @@ async function confirmSave() {
 }
 
 // ── LOG ──
+function payLabel(s) {
+  return {unpaid:'🔴 Unpaid', cash:'🟡 Cash', bank:'🟢 Bank', cheque:'🔵 Cheque'}[s||'unpaid'] || '🔴 Unpaid';
+}
+
 function setFilter(el, f) {
   document.querySelectorAll('.fchip').forEach(x=>x.classList.remove('on'));
   el.classList.add('on'); logFilter = f; renderLog();
@@ -454,7 +529,10 @@ function renderLog() {
         <div class="lsup">${e.supplier||'—'}</div>
         <div class="lmeta">${e.invoice_no||'—'} · ${fmtD(e.date)}</div>
       </div>
-      <div class="lamt">RM ${Number(e.total).toFixed(2)}</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+        <div class="lamt">RM ${Number(e.total).toFixed(2)}</div>
+        <span class="pstatus ${e.payment_status||'unpaid'}">${payLabel(e.payment_status)}</span>
+      </div>
     </div>`).join('');
 }
 
@@ -479,6 +557,14 @@ function openDetail(id) {
     <div class="mfrow"><span class="k">Date</span><span class="v">${fmtD(e.date)}</span></div>
     ${items}
     <div class="mfrow"><span class="k">Total</span><span class="v" style="color:var(--accent);font-size:15px">RM ${Number(e.total).toFixed(2)}</span></div>
+    <div class="mfrow"><span class="k">Payment</span><span class="v">
+      <select onchange="updatePayStatus('${e.id}', this.value)" style="background:var(--s2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:4px 8px;outline:none">
+        <option value="unpaid" ${(e.payment_status||'unpaid')==='unpaid'?'selected':''}>🔴 Unpaid</option>
+        <option value="cash" ${e.payment_status==='cash'?'selected':''}>🟡 Cash Paid</option>
+        <option value="bank" ${e.payment_status==='bank'?'selected':''}>🟢 Bank Transfer</option>
+        <option value="cheque" ${e.payment_status==='cheque'?'selected':''}>🔵 Cheque</option>
+      </select>
+    </span></div>
     ${e.notes?`<div class="mfrow"><span class="k">Notes</span><span class="v">${e.notes}</span></div>`:''}
   `;
   document.getElementById('modal').classList.add('on');
@@ -486,6 +572,24 @@ function openDetail(id) {
 
 function closeModal() { document.getElementById('modal').classList.remove('on'); }
 function modalBg(e) { if(e.target===document.getElementById('modal')) closeModal(); }
+
+async function updatePayStatus(id, status) {
+  // update locally
+  const entry = log.find(x=>x.id===id);
+  if(entry) entry.payment_status = status;
+  // update in db
+  try {
+    await fetch('/api/invoices', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, payment_status: status })
+    });
+    showToast('Payment status updated ✓');
+    renderLog();
+  } catch(e) {
+    showToast('Update failed: ' + e.message);
+  }
+}
 
 async function deleteEntry() {
   showLoading('Deleting…');
