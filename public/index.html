@@ -226,13 +226,21 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;displa
 
   <!-- SUMMARY -->
   <div id="v-summary" class="view">
+    <div class="filters" id="summary-filters">
+      <div class="fchip on" onclick="setSummaryOutlet(this,'ALL')">All Outlets</div>
+      <div class="fchip" onclick="setSummaryOutlet(this,'HKP')">HKP</div>
+      <div class="fchip" onclick="setSummaryOutlet(this,'HKK')">HKK</div>
+      <div class="fchip" onclick="setSummaryOutlet(this,'HKBJ')">HKBJ</div>
+      <div class="fchip" onclick="setSummaryOutlet(this,'GGC')">GGC</div>
+      <div class="fchip" onclick="setSummaryOutlet(this,'GGU')">GGU</div>
+    </div>
     <div class="sgrid">
       <div class="scard"><div class="sl">Invoices</div><div class="sv w" id="s-count">0</div></div>
       <div class="scard"><div class="sl">Total AP (RM)</div><div class="sv" id="s-total">0.00</div></div>
-      <div class="scard"><div class="sl">This Month</div><div class="sv w" id="s-month">0</div></div>
+      <div class="scard"><div class="sl">Unpaid</div><div class="sv" id="s-unpaid" style="color:var(--err)">0.00</div></div>
       <div class="scard"><div class="sl">Suppliers</div><div class="sv w" id="s-sups">0</div></div>
     </div>
-    <div class="lbl">By Supplier</div>
+    <div class="lbl">Supplier Breakdown</div>
     <div id="sup-list"></div>
     <button class="exp-btn" onclick="exportCSV()">⬇ Export CSV for Accountant</button>
   </div>
@@ -267,6 +275,12 @@ let extracted = null;
 let log = [];
 let progTimer = null;
 let payStatus = 'unpaid';
+let summaryOutlet = 'ALL';
+
+function setSummaryOutlet(el, o) {
+  document.querySelectorAll('#summary-filters .fchip').forEach(x=>x.classList.remove('on'));
+  el.classList.add('on'); summaryOutlet = o; renderSummary();
+}
 
 function setPayStatus(status) {
   payStatus = status;
@@ -414,37 +428,57 @@ function renderResult(d, fname) {
     ${d.notes?`<div class="frow"><span class="fkey">Notes</span><span class="fval" style="font-size:11px;color:var(--muted)">${d.notes}</span></div>`:''}
   `;
   const items = (d.items||[]).filter(i=>i.desc||i.amount);
-  document.getElementById('rc-items').innerHTML = items.length ? `
-    <div class="items-title">Line Items <span style="color:var(--muted);font-size:9px;font-weight:400;font-family:'DM Mono',monospace">— tap amounts to edit</span></div>
-    ${items.map((i,idx)=>`
-    <div class="irow" style="align-items:center">
-      <span class="idesc">${i.desc||'—'}</span>
-      <span class="iqty">${i.qty||''}</span>
-      <span class="iamt"><input 
-        type="number" 
-        id="iamt-${idx}"
-        value="${Number(i.amount||0).toFixed(2)}"
-        oninput="recalcTotal()"
-        style="background:transparent;border:none;border-bottom:1px dashed var(--border);color:var(--accent);font-family:'DM Mono',monospace;font-size:12px;text-align:right;width:72px;outline:none;padding:2px 0"
-      ></span>
-    </div>`).join('')}
-    <div class="irow" style="border-top:1px solid var(--border);margin-top:4px;padding-top:6px">
-      <span class="idesc" style="font-weight:700;color:var(--text)">TOTAL</span>
-      <span class="iqty"></span>
-      <span class="iamt" style="color:var(--accent);font-size:14px;font-weight:500" id="e-total-display">RM ${Number(d.total||0).toFixed(2)}</span>
+  const editStyle = "background:transparent;border:none;border-bottom:1px dashed var(--border);font-family:'DM Mono',monospace;font-size:11px;outline:none;padding:2px 0;width:100%;color:var(--text)";
+  document.getElementById('rc-items').innerHTML = `
+    <div class="items-title">Line Items <span style="color:var(--muted);font-size:9px;font-weight:400;font-family:'DM Mono',monospace">— all fields editable</span></div>
+    <div style="display:grid;grid-template-columns:1fr 50px 60px 70px;gap:4px;padding:4px 0;border-bottom:1px solid var(--border);margin-bottom:4px">
+      <span style="font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Description</span>
+      <span style="font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:center">Qty</span>
+      <span style="font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:right">Unit Price</span>
+      <span style="font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:right">Total</span>
     </div>
-  ` : `
-    <div class="items-title">Total</div>
-    <div class="irow">
-      <span class="idesc">Invoice Total</span>
-      <span class="iqty"></span>
-      <span class="iamt"><input type="number" id="iamt-0" value="${Number(d.total||0).toFixed(2)}" oninput="recalcTotal()" style="background:transparent;border:none;border-bottom:1px dashed var(--border);color:var(--accent);font-family:'DM Mono',monospace;font-size:14px;text-align:right;width:80px;outline:none;padding:2px 0"></span>
+    ${(items.length ? items : [{}]).map((i,idx)=>`
+    <div style="display:grid;grid-template-columns:1fr 50px 60px 70px;gap:4px;padding:5px 0;border-bottom:1px solid var(--border);align-items:center">
+      <input id="idesc-${idx}" value="${(i.desc||'').replace(/"/g,'&quot;')}" placeholder="Item description" style="${editStyle}">
+      <input id="iqty-${idx}" value="${i.qty||''}" placeholder="qty" style="${editStyle};text-align:center">
+      <input id="iuprice-${idx}" type="number" value="${Number(i.unit_price||0).toFixed(2)}" oninput="calcRowTotal(${idx})" placeholder="0.00" style="${editStyle};text-align:right;color:var(--muted)">
+      <input id="iamt-${idx}" type="number" value="${Number(i.amount||0).toFixed(2)}" oninput="recalcTotal()" placeholder="0.00" style="${editStyle};text-align:right;color:var(--accent)">
+    </div>`).join('')}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--border);margin-top:4px">
+      <button onclick="addItemRow()" style="background:none;border:1px dashed var(--border);border-radius:6px;color:var(--muted);font-family:'Syne',sans-serif;font-size:10px;font-weight:700;padding:4px 10px;cursor:pointer">+ Row</button>
+      <span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:500;color:var(--accent)" id="e-total-display">RM ${Number(d.total||0).toFixed(2)}</span>
     </div>
   `;
-  // store item count for recalc
   window._itemCount = items.length || 1;
   window._extractedTotal = Number(d.total||0);
   document.getElementById('result-card').classList.add('on');
+}
+
+function calcRowTotal(idx) {
+  const uprice = parseFloat(document.getElementById('iuprice-'+idx)?.value)||0;
+  const qty = parseFloat(document.getElementById('iqty-'+idx)?.value)||0;
+  if(uprice > 0 && qty > 0) {
+    const amtEl = document.getElementById('iamt-'+idx);
+    if(amtEl) { amtEl.value = (uprice * qty).toFixed(2); }
+  }
+  recalcTotal();
+}
+
+function addItemRow() {
+  const idx = window._itemCount++;
+  const editStyle = "background:transparent;border:none;border-bottom:1px dashed var(--border);font-family:'DM Mono',monospace;font-size:11px;outline:none;padding:2px 0;width:100%;color:var(--text)";
+  const div = document.createElement('div');
+  div.style.cssText = "display:grid;grid-template-columns:1fr 50px 60px 70px;gap:4px;padding:5px 0;border-bottom:1px solid var(--border);align-items:center";
+  div.innerHTML = `
+    <input id="idesc-${idx}" placeholder="Item description" style="${editStyle}">
+    <input id="iqty-${idx}" placeholder="qty" style="${editStyle};text-align:center">
+    <input id="iuprice-${idx}" type="number" oninput="calcRowTotal(${idx})" placeholder="0.00" style="${editStyle};text-align:right;color:var(--muted)">
+    <input id="iamt-${idx}" type="number" oninput="recalcTotal()" placeholder="0.00" style="${editStyle};text-align:right;color:var(--accent)">
+  `;
+  // insert before the total row (last child of rc-items)
+  const container = document.getElementById('rc-items');
+  const lastDiv = container.querySelector('div:last-child');
+  container.insertBefore(div, lastDiv);
 }
 
 function recalcTotal() {
@@ -474,11 +508,15 @@ async function confirmSave() {
   btn.disabled = true; btn.textContent = 'Saving…';
   showLoading('Saving to database…');
   try {
-    // rebuild items with edited amounts
-    const editedItems = (extracted?.items||[]).filter(i=>i.desc||i.amount).map((i,idx)=>{
-      const el = document.getElementById('iamt-'+idx);
-      return { ...i, amount: el ? parseFloat(el.value)||0 : i.amount };
-    });
+    // rebuild items with all edited fields
+    const editedItems = [];
+    for(let idx=0; idx<window._itemCount; idx++) {
+      const desc = document.getElementById('idesc-'+idx)?.value||'';
+      const qty = document.getElementById('iqty-'+idx)?.value||'';
+      const unit_price = parseFloat(document.getElementById('iuprice-'+idx)?.value)||0;
+      const amount = parseFloat(document.getElementById('iamt-'+idx)?.value)||0;
+      if(desc||amount) editedItems.push({desc, qty, unit_price, amount});
+    }
     const editedTotal = window._extractedTotal || editedItems.reduce((s,i)=>s+i.amount,0);
     const invoice = {
       outlet,
@@ -605,28 +643,33 @@ async function deleteEntry() {
 
 // ── SUMMARY ──
 function renderSummary() {
-  const total = log.reduce((s,e)=>s+Number(e.total||0),0);
-  const now = new Date();
-  const thisMonth = log.filter(e=>{
-    if(!e.date) return false;
-    try {
-      const d = e.date.includes('-') ? new Date(e.date) : new Date(e.date.split('/').reverse().join('-'));
-      return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
-    } catch{ return false; }
-  }).length;
-  const sups = [...new Set(log.map(e=>e.supplier).filter(Boolean))];
-  document.getElementById('s-count').textContent = log.length;
+  const filtered = summaryOutlet==='ALL' ? log : log.filter(e=>e.outlet===summaryOutlet);
+  const total = filtered.reduce((s,e)=>s+Number(e.total||0),0);
+  const unpaid = filtered.filter(e=>!e.payment_status||e.payment_status==='unpaid').reduce((s,e)=>s+Number(e.total||0),0);
+  const sups = [...new Set(filtered.map(e=>e.supplier).filter(Boolean))];
+  document.getElementById('s-count').textContent = filtered.length;
   document.getElementById('s-total').textContent = total.toFixed(2);
-  document.getElementById('s-month').textContent = thisMonth;
+  document.getElementById('s-unpaid').textContent = unpaid.toFixed(2);
   document.getElementById('s-sups').textContent = sups.length;
+  // supplier breakdown with payment split
   const bd={};
-  log.forEach(e=>{ if(e.supplier) bd[e.supplier]=(bd[e.supplier]||0)+Number(e.total||0); });
-  const sorted = Object.entries(bd).sort((a,b)=>b[1]-a[1]);
-  const max = sorted[0]?.[1]||1;
-  document.getElementById('sup-list').innerHTML = sorted.length ? sorted.map(([s,a])=>`
+  filtered.forEach(e=>{
+    if(!e.supplier) return;
+    if(!bd[e.supplier]) bd[e.supplier]={total:0,unpaid:0};
+    bd[e.supplier].total += Number(e.total||0);
+    if(!e.payment_status||e.payment_status==='unpaid') bd[e.supplier].unpaid += Number(e.total||0);
+  });
+  const sorted = Object.entries(bd).sort((a,b)=>b[1].total-a[1].total);
+  const max = sorted[0]?.[1].total||1;
+  document.getElementById('sup-list').innerHTML = sorted.length ? sorted.map(([s,v])=>`
     <div class="suprow">
-      <div class="supname">${s}<span>RM ${a.toFixed(2)}</span></div>
-      <div class="bartrack"><div class="barfill" style="width:${(a/max*100).toFixed(1)}%"></div></div>
+      <div class="supname">${s}
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+          <span>RM ${v.total.toFixed(2)}</span>
+          ${v.unpaid>0?`<span style="font-size:10px;color:var(--err)">🔴 RM ${v.unpaid.toFixed(2)} unpaid</span>`:'<span style="font-size:10px;color:var(--ok)">✓ Settled</span>'}
+        </div>
+      </div>
+      <div class="bartrack"><div class="barfill" style="width:${(v.total/max*100).toFixed(1)}%"></div></div>
     </div>`).join('') : `<div class="empty"><div class="ico">📊</div><p>No data yet.</p></div>`;
 }
 
