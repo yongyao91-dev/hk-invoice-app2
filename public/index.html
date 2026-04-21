@@ -242,20 +242,39 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;displa
     </div>
     <div class="lbl">Supplier Breakdown</div>
     <div id="sup-list"></div>
-    <button class="exp-btn" onclick="exportCSV()">⬇ Export CSV for Accountant</button>
+    <div class="lbl" style="margin-top:16px">📋 Accountant Export (CSV)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+      <button class="exp-btn" style="margin-top:0" onclick="exportCSV('HKP')">⬇ HKP</button>
+      <button class="exp-btn" style="margin-top:0" onclick="exportCSV('HKK')">⬇ HKK</button>
+      <button class="exp-btn" style="margin-top:0" onclick="exportCSV('HKBJ')">⬇ HKBJ</button>
+      <button class="exp-btn" style="margin-top:0" onclick="exportCSV('GGC')">⬇ GGC</button>
+      <button class="exp-btn" style="margin-top:0" onclick="exportCSV('GGU')">⬇ GGU</button>
+      <button class="exp-btn" style="margin-top:0;border-color:var(--accent);color:var(--accent)" onclick="exportCSV('ALL')">⬇ All Outlets</button>
+    </div>
+    <div class="lbl">📦 Stock Cost Report (Excel)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <button class="exp-btn" style="margin-top:0" onclick="exportStockExcel('HKP')">⬇ HKP</button>
+      <button class="exp-btn" style="margin-top:0" onclick="exportStockExcel('HKK')">⬇ HKK</button>
+      <button class="exp-btn" style="margin-top:0" onclick="exportStockExcel('HKBJ')">⬇ HKBJ</button>
+      <button class="exp-btn" style="margin-top:0" onclick="exportStockExcel('GGC')">⬇ GGC</button>
+      <button class="exp-btn" style="margin-top:0" onclick="exportStockExcel('GGU')">⬇ GGU</button>
+      <button class="exp-btn" style="margin-top:0;border-color:var(--accent);color:var(--accent)" onclick="exportStockExcel('ALL')">⬇ All Outlets</button>
+    </div>
   </div>
 
 </div>
 
 <!-- DETAIL MODAL -->
-<div class="overlay" id="modal" onclick="modalBg(event)">
-  <div class="modal">
-    <div class="mhead">
-      <h3>Invoice Detail</h3>
-      <button class="mcls" onclick="closeModal()">×</button>
+<div id="modal" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.75)" onclick="closeModal()">
+  <div onclick="event.stopPropagation()" style="position:absolute;bottom:0;left:0;right:0;background:#161616;border-radius:18px 18px 0 0;padding:20px 16px 48px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <span style="font-size:14px;font-weight:800">Invoice Detail</span>
+      <button onclick="closeModal()" style="background:none;border:none;color:#666;font-size:24px;cursor:pointer;line-height:1;padding:0">×</button>
     </div>
     <div id="modal-body"></div>
-    <button class="del-btn" onclick="deleteEntry()">🗑 Delete This Entry</button>
+    <button onclick="deleteEntry()" style="width:100%;margin-top:20px;padding:14px;background:rgba(224,85,85,0.15);border:1.5px solid #e05555;border-radius:12px;color:#e05555;font-family:'Syne',sans-serif;font-size:13px;font-weight:800;cursor:pointer;letter-spacing:.04em">
+      🗑 Delete This Entry
+    </button>
   </div>
 </div>
 
@@ -585,31 +604,26 @@ function openDetail(id) {
   activeId = id;
   const e = log.find(x=>x.id===id);
   if(!e) return;
-  const items = (e.items||[]).filter(i=>i.desc||i.amount).map(i=>`
-    <div class="mfrow"><span class="k">${i.desc||'Item'}</span><span class="v">${i.qty||''} · RM ${Number(i.amount).toFixed(2)}</span></div>
-  `).join('');
-  document.getElementById('modal-body').innerHTML = `
-    <div class="mfrow"><span class="k">Outlet</span><span class="v">${e.outlet}</span></div>
-    <div class="mfrow"><span class="k">Supplier</span><span class="v">${e.supplier}</span></div>
-    <div class="mfrow"><span class="k">Inv No.</span><span class="v">${e.invoice_no||'—'}</span></div>
-    <div class="mfrow"><span class="k">Date</span><span class="v">${fmtD(e.date)}</span></div>
-    ${items}
-    <div class="mfrow"><span class="k">Total</span><span class="v" style="color:var(--accent);font-size:15px">RM ${Number(e.total).toFixed(2)}</span></div>
-    <div class="mfrow"><span class="k">Payment</span><span class="v">
-      <select onchange="updatePayStatus('${e.id}', this.value)" style="background:var(--s2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:4px 8px;outline:none">
-        <option value="unpaid" ${(e.payment_status||'unpaid')==='unpaid'?'selected':''}>🔴 Unpaid</option>
-        <option value="cash" ${e.payment_status==='cash'?'selected':''}>🟡 Cash Paid</option>
-        <option value="bank" ${e.payment_status==='bank'?'selected':''}>🟢 Bank Transfer</option>
-        <option value="cheque" ${e.payment_status==='cheque'?'selected':''}>🔵 Cheque</option>
-      </select>
-    </span></div>
-    ${e.notes?`<div class="mfrow"><span class="k">Notes</span><span class="v">${e.notes}</span></div>`:''}
-  `;
-  document.getElementById('modal').classList.add('on');
+  const items = (e.items||[]).filter(i=>i.desc||i.amount).map(i=>
+    '<div class="mfrow"><span class="k">'+( i.desc||'Item')+'</span><span class="v">'+(i.qty||'')+' · RM '+Number(i.amount).toFixed(2)+'</span></div>'
+  ).join('');
+  const status = e.payment_status||'unpaid';
+  const opts = ['unpaid','cash','bank','cheque'].map(s=>
+    '<option value="'+s+'"'+(status===s?' selected':'')+'>'+({unpaid:'🔴 Unpaid',cash:'🟡 Cash Paid',bank:'🟢 Bank Transfer',cheque:'🔵 Cheque'}[s])+'</option>'
+  ).join('');
+  document.getElementById('modal-body').innerHTML =
+    '<div class="mfrow"><span class="k">Outlet</span><span class="v">'+e.outlet+'</span></div>'+
+    '<div class="mfrow"><span class="k">Supplier</span><span class="v">'+(e.supplier||'—')+'</span></div>'+
+    '<div class="mfrow"><span class="k">Inv No.</span><span class="v">'+(e.invoice_no||'—')+'</span></div>'+
+    '<div class="mfrow"><span class="k">Date</span><span class="v">'+fmtD(e.date)+'</span></div>'+
+    items+
+    '<div class="mfrow"><span class="k">Total</span><span class="v" style="color:var(--accent);font-size:15px">RM '+Number(e.total).toFixed(2)+'</span></div>'+
+    '<div class="mfrow"><span class="k">Payment</span><span class="v"><select id="modal-pay-select" style="background:#202020;border:1px solid #303030;border-radius:6px;color:#eeebe4;font-family:monospace;font-size:12px;padding:4px 8px;outline:none">'+opts+'</select></span></div>'+
+    (e.notes?'<div class="mfrow"><span class="k">Notes</span><span class="v">'+e.notes+'</span></div>':'');
+  document.getElementById('modal-pay-select') && document.getElementById('modal-pay-select').addEventListener('change', function(){ updatePayStatus(e.id, this.value); });
+  document.getElementById('modal').style.display='block';
 }
 
-function closeModal() { document.getElementById('modal').classList.remove('on'); }
-function modalBg(e) { if(e.target===document.getElementById('modal')) closeModal(); }
 
 async function updatePayStatus(id, status) {
   // update locally
@@ -674,15 +688,55 @@ function renderSummary() {
 }
 
 // ── EXPORT ──
-function exportCSV() {
+function exportCSV(outletFilter) {
   if(!log.length){ showToast('No data'); return; }
-  const rows = [['Outlet','Supplier','Invoice No','Date','Total RM','Notes','Saved At']];
-  log.forEach(e=>rows.push([e.outlet,e.supplier,e.invoice_no||'',fmtD(e.date),Number(e.total).toFixed(2),e.notes||'',e.saved_at]));
+  const entries = outletFilter && outletFilter!=='ALL' ? log.filter(e=>e.outlet===outletFilter) : log;
+  if(!entries.length){ showToast('No data for ' + outletFilter); return; }
+  // Simple accountant format - one row per invoice
+  const rows = [['Outlet','Supplier','Invoice No','Date','Total (RM)','Payment Status']];
+  entries.forEach(e=>{
+    rows.push([
+      e.outlet, e.supplier, e.invoice_no||'', fmtD(e.date),
+      Number(e.total).toFixed(2),
+      e.payment_status||'unpaid'
+    ]);
+  });
   const csv = rows.map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const label = outletFilter && outletFilter!=='ALL' ? outletFilter : 'ALL';
   const a = document.createElement('a');
   a.href = 'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
-  a.download = 'HKGroup_Invoices_'+new Date().toISOString().slice(0,10)+'.csv';
-  a.click(); showToast('CSV exported ✓');
+  a.download = 'Invoices_'+label+'_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click(); showToast('Exported: ' + label + ' ✓');
+}
+
+function exportStockExcel(outletFilter) {
+  if(!log.length){ showToast('No data'); return; }
+  const entries = outletFilter && outletFilter!=='ALL' ? log.filter(e=>e.outlet===outletFilter) : log;
+  if(!entries.length){ showToast('No data for ' + outletFilter); return; }
+  // Build stock rows - one per line item
+  const rows = [['Outlet','Supplier','Invoice No','Date','Item Description','Qty','Unit Price (RM)','Total Cost (RM)','Payment Status']];
+  entries.forEach(e=>{
+    const items = (e.items||[]).filter(i=>i.desc||i.amount);
+    const status = e.payment_status||'unpaid';
+    if(items.length){
+      items.forEach(i=>{
+        rows.push([
+          e.outlet, e.supplier, e.invoice_no||'', fmtD(e.date),
+          i.desc||'', i.qty||'',
+          Number(i.unit_price||0).toFixed(2),
+          Number(i.amount||0).toFixed(2),
+          status
+        ]);
+      });
+    }
+  });
+  if(rows.length<=1){ showToast('No line items found'); return; }
+  const csv = rows.map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const label = outletFilter && outletFilter!=='ALL' ? outletFilter : 'ALL';
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download = 'StockCost_'+label+'_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click(); showToast('Stock report exported ✓');
 }
 
 // ── UTILS ──
