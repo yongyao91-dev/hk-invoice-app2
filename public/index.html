@@ -221,6 +221,17 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;displa
       <div class="fchip" onclick="setFilter(this,'GGC')">GGC</div>
       <div class="fchip" onclick="setFilter(this,'GGU')">GGU</div>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:14px;align-items:center">
+      <div>
+        <div style="font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px">From</div>
+        <input type="date" id="filter-from" onchange="renderLog()" style="width:100%;background:var(--s1);border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none">
+      </div>
+      <div>
+        <div style="font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px">To</div>
+        <input type="date" id="filter-to" onchange="renderLog()" style="width:100%;background:var(--s1);border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none">
+      </div>
+      <button onclick="clearDateFilter()" style="margin-top:18px;padding:8px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer">Clear</button>
+    </div>
     <div id="log-list"></div>
   </div>
 
@@ -567,6 +578,12 @@ function payLabel(s) {
   return {unpaid:'🔴 Unpaid', cash:'🟡 Cash', bank:'🟢 Bank', cheque:'🔵 Cheque'}[s||'unpaid'] || '🔴 Unpaid';
 }
 
+function clearDateFilter() {
+  document.getElementById('filter-from').value = '';
+  document.getElementById('filter-to').value = '';
+  renderLog();
+}
+
 function setFilter(el, f) {
   document.querySelectorAll('.fchip').forEach(x=>x.classList.remove('on'));
   el.classList.add('on'); logFilter = f; renderLog();
@@ -574,23 +591,40 @@ function setFilter(el, f) {
 
 function renderLog() {
   const entries = logFilter==='ALL' ? log : log.filter(e=>e.outlet===logFilter);
+  // apply date filter
+  const dateFrom = document.getElementById('filter-from')?.value;
+  const dateTo = document.getElementById('filter-to')?.value;
+  const filtered = entries.filter(e=>{
+    if(!dateFrom && !dateTo) return true;
+    if(!e.date) return true;
+    const d = e.date.includes('-') ? e.date : e.date.split('/').reverse().join('-');
+    if(dateFrom && d < dateFrom) return false;
+    if(dateTo && d > dateTo) return false;
+    return true;
+  });
   const list = document.getElementById('log-list');
-  if(!entries.length) {
-    list.innerHTML = `<div class="empty"><div class="ico">🧾</div><p>No invoices yet.<br>Go to Capture to start.</p></div>`;
+  if(!filtered.length) {
+    list.innerHTML = '<div class="empty"><div class="ico">🧾</div><p>No invoices found.</p></div>';
     return;
   }
-  list.innerHTML = entries.map(e=>`
-    <div class="lentry" onclick="openDetail('${e.id}')">
-      <div class="ltag">${e.outlet}</div>
-      <div class="lmain">
-        <div class="lsup">${e.supplier||'—'}</div>
-        <div class="lmeta">${e.invoice_no||'—'} · ${fmtD(e.date)}</div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
-        <div class="lamt">RM ${Number(e.total).toFixed(2)}</div>
-        <span class="pstatus ${e.payment_status||'unpaid'}">${payLabel(e.payment_status)}</span>
-      </div>
-    </div>`).join('');
+  list.innerHTML = '';
+  filtered.forEach(e => {
+    const div = document.createElement('div');
+    div.className = 'lentry';
+    div.dataset.id = e.id;
+    div.innerHTML =
+      '<div class="ltag">'+e.outlet+'</div>'+
+      '<div class="lmain">'+
+        '<div class="lsup">'+(e.supplier||'—')+'</div>'+
+        '<div class="lmeta">'+(e.invoice_no||'—')+' · '+fmtD(e.date)+'</div>'+
+      '</div>'+
+      '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">'+
+        '<div class="lamt">RM '+Number(e.total).toFixed(2)+'</div>'+
+        '<span class="pstatus '+(e.payment_status||'unpaid')+'">'+payLabel(e.payment_status)+'</span>'+
+      '</div>';
+    div.addEventListener('click', function(){ openDetail(this.dataset.id); });
+    list.appendChild(div);
+  });
 }
 
 function fmtD(d) {
@@ -690,8 +724,18 @@ function renderSummary() {
 // ── EXPORT ──
 function exportCSV(outletFilter) {
   if(!log.length){ showToast('No data'); return; }
-  const entries = outletFilter && outletFilter!=='ALL' ? log.filter(e=>e.outlet===outletFilter) : log;
-  if(!entries.length){ showToast('No data for ' + outletFilter); return; }
+  const outletEntries = outletFilter && outletFilter!=='ALL' ? log.filter(e=>e.outlet===outletFilter) : log;
+  const dateFrom = document.getElementById('filter-from')?.value;
+  const dateTo = document.getElementById('filter-to')?.value;
+  const entries = outletEntries.filter(e=>{
+    if(!dateFrom && !dateTo) return true;
+    if(!e.date) return true;
+    const d = e.date.includes('-') ? e.date : e.date.split('/').reverse().join('-');
+    if(dateFrom && d < dateFrom) return false;
+    if(dateTo && d > dateTo) return false;
+    return true;
+  });
+  if(!entries.length){ showToast('No data for selected range'); return; }
   // Simple accountant format - one row per invoice
   const rows = [['Outlet','Supplier','Invoice No','Date','Total (RM)','Payment Status']];
   entries.forEach(e=>{
@@ -711,8 +755,18 @@ function exportCSV(outletFilter) {
 
 function exportStockExcel(outletFilter) {
   if(!log.length){ showToast('No data'); return; }
-  const entries = outletFilter && outletFilter!=='ALL' ? log.filter(e=>e.outlet===outletFilter) : log;
-  if(!entries.length){ showToast('No data for ' + outletFilter); return; }
+  const outletEntries2 = outletFilter && outletFilter!=='ALL' ? log.filter(e=>e.outlet===outletFilter) : log;
+  const dateFrom2 = document.getElementById('filter-from')?.value;
+  const dateTo2 = document.getElementById('filter-to')?.value;
+  const entries = outletEntries2.filter(e=>{
+    if(!dateFrom2 && !dateTo2) return true;
+    if(!e.date) return true;
+    const d = e.date.includes('-') ? e.date : e.date.split('/').reverse().join('-');
+    if(dateFrom2 && d < dateFrom2) return false;
+    if(dateTo2 && d > dateTo2) return false;
+    return true;
+  });
+  if(!entries.length){ showToast('No data for selected range'); return; }
   // Build stock rows - one per line item
   const rows = [['Outlet','Supplier','Invoice No','Date','Item Description','Qty','Unit Price (RM)','Total Cost (RM)','Payment Status']];
   entries.forEach(e=>{
