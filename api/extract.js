@@ -14,7 +14,7 @@ module.exports = async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY not set on server" });
+  if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY not set" });
 
   try {
     const client = new Anthropic({ apiKey });
@@ -31,30 +31,33 @@ module.exports = async function handler(req, res) {
     const message = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 2048,
-      system: "You are an invoice OCR tool. Respond with ONLY a raw JSON object. No markdown, no code fences. Start with { and end with }.",
+      system: "You are an invoice OCR tool for a Malaysian F&B restaurant group. Respond with ONLY a raw JSON object. No markdown, no code fences, no explanation. Start with { and end with }.",
       messages: [{
         role: "user",
         content: [
           contentBlock,
-          {
-            type: "text",
-            text: `Extract invoice data. Return ONLY this JSON:
-{"supplier":"","invoice_no":"","date":"","items":[{"desc":"","qty":"","amount":0}],"total":0,"notes":""}
-Rules: date format DD/MM/YYYY, amounts are numbers, max 10 items, keep descriptions short (under 30 chars). Known suppliers: ${KNOWN_SUPPLIERS.join(", ")}`
-          }
+          { type: "text", text: `Extract ALL data from this invoice image carefully. Return ONLY this JSON structure:
+{"supplier":"company name","invoice_no":"invoice or DO number","date":"DD/MM/YYYY","items":[{"desc":"item description","qty":"quantity with unit e.g. 5 KG","unit_price":0.00,"amount":0.00}],"total":0.00,"notes":"payment terms or bank info"}
+
+IMPORTANT rules:
+- unit_price: the price per unit (e.g. price per KG, per pack, per piece) — look for columns labeled Price/Unit, Unit Price, Harga Seunit, @, or similar
+- amount: the total cost for that line item (qty x unit_price)
+- If unit_price column exists, always read it even if you have to calculate it
+- qty: include the unit (KG, Pack, CTN, pcs etc.)
+- date format must be DD/MM/YYYY
+- all prices are numbers not strings
+- max 15 items
+- Known suppliers to match: ${KNOWN_SUPPLIERS.join(", ")}` }
         ]
       }]
     });
 
     const rawText = message.content.map(b => b.text || "").join("");
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return res.status(422).json({ error: "Could not parse invoice", raw: rawText.slice(0, 200) });
-
+    if (!jsonMatch) return res.status(422).json({ error: "Could not parse invoice", raw: rawText.slice(0,200) });
     const parsed = JSON.parse(jsonMatch[0]);
     return res.status(200).json({ success: true, data: parsed });
-
   } catch (err) {
-    console.error(err);
     return res.status(500).json({ error: err.message });
   }
 }
