@@ -504,12 +504,14 @@ function setDT(t){
   const crd=document.getElementById('dt-credit');
   if(inv) inv.className='pay-btn'+(t==='invoice'?' a-bank':'');
   if(crd) crd.className='pay-btn'+(t==='credit'?' a-unpaid':'');
-  // flip total sign on result card if already extracted
+  // flip total sign
   const totalEl=document.getElementById('total-disp');
-  if(totalEl && totalEl.value){
-    const v=Math.abs(parseFloat(totalEl.value)||0);
-    totalEl.value=(t==='credit'?-v:v).toFixed(2);
-    window._total=parseFloat(totalEl.value);
+  if(totalEl){
+    const v=Math.abs(parseFloat(totalEl.value)||window._total||0);
+    const newVal=t==='credit'?-v:v;
+    totalEl.value=newVal.toFixed(2);
+    totalEl.style.color=t==='credit'?'#e05555':'#e8c547';
+    window._total=newVal;
   }
 }
 function showErr(msg){ document.getElementById('rc-fn').textContent='Error'; document.getElementById('rc-fields').innerHTML='<div style="padding:14px;font-size:11px;color:var(--err);font-family:\'DM Mono\',monospace;word-break:break-all">'+msg+'</div>'; document.getElementById('rc-items').innerHTML=''; document.getElementById('result-card').classList.add('on'); }
@@ -546,7 +548,7 @@ function renderLog(){
     div.className='lentry';
     const st=e.payment_status||'unpaid';
     const stLabel={unpaid:'🔴 Unpaid',cash:'🟡 Cash',bank:'🟢 Bank',cheque:'🔵 Cheque'}[st]||'🔴 Unpaid';
-    div.innerHTML='<div class="ltag">'+e.outlet+'</div><div class="lmain"><div class="lsup">'+(e.supplier||'—')+'</div><div class="lmeta">'+(e.invoice_no||'—')+' · '+fmtD(e.date)+'</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="lamt">RM '+Number(e.total).toFixed(2)+'</span><span class="pstatus '+st+'">'+stLabel+'</span></div>';
+    div.innerHTML='<div class="ltag">'+e.outlet+'</div><div class="lmain"><div class="lsup">'+(e.supplier||'—')+'</div><div class="lmeta">'+(e.invoice_no||'—')+' · '+fmtD(e.date)+'</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="lamt" style="color:'+(e.doc_type==="credit"?"#e05555":"#e8c547")+'">'+(e.doc_type==="credit"?"-":"")+'RM '+Math.abs(Number(e.total)).toFixed(2)+'</span><span class="pstatus '+st+'">'+stLabel+'</span></div>';
     div.addEventListener('click',()=>openModal(e.id));
     list.appendChild(div);
   });
@@ -614,7 +616,7 @@ function renderSummary(){
 
 // ── EXPORT ──
 function getExportEntries(outletFilter){ const base=outletFilter&&outletFilter!=='ALL'?log.filter(e=>e.outlet===outletFilter):log; return getDateFiltered(base); }
-function exportCSV(outletFilter){ const entries=getExportEntries(outletFilter); if(!entries.length){ showToast('No data'); return; } const rows=[['Type','Outlet','Supplier','Invoice No','Date','Total (RM)','Payment Status']]; entries.forEach(e=>rows.push([e.doc_type==='credit'?'Credit Note':'Invoice',e.outlet,e.supplier,e.invoice_no||'',fmtD(e.date),Number(e.total).toFixed(2),e.payment_status||'unpaid'])); dlCSV(rows,'Invoices_'+(outletFilter||'ALL')+'_'+today()+'.csv'); showToast('Exported ✓'); }
+function exportCSV(outletFilter){ const entries=getExportEntries(outletFilter); if(!entries.length){ showToast('No data'); return; } const rows=[['Type','Outlet','Supplier','Invoice No','Date','Total (RM)','Payment Status']]; entries.forEach(e=>{ const amt=e.doc_type==='credit'?-Math.abs(Number(e.total)):Number(e.total); rows.push([e.doc_type==='credit'?'Credit Note':'Invoice',e.outlet,e.supplier,e.invoice_no||'',fmtD(e.date),amt.toFixed(2),e.payment_status||'unpaid']); }); dlCSV(rows,'Invoices_'+(outletFilter||'ALL')+'_'+today()+'.csv'); showToast('Exported ✓'); }
 function exportStock(outletFilter){ const entries=getExportEntries(outletFilter); const rows=[['Outlet','Supplier','Invoice No','Date','Item','Qty','Unit Price (RM)','Total Cost (RM)','Payment Status']]; entries.forEach(e=>{ (e.items||[]).filter(i=>i.desc||i.amount).forEach(i=>rows.push([e.outlet,e.supplier,e.invoice_no||'',fmtD(e.date),i.desc||'',i.qty||'',Number(i.unit_price||0).toFixed(2),Number(i.amount||0).toFixed(2),e.payment_status||'unpaid'])); }); if(rows.length<=1){ showToast('No line items found'); return; } dlCSV(rows,'StockCost_'+(outletFilter||'ALL')+'_'+today()+'.csv'); showToast('Stock report exported ✓'); }
 function dlCSV(rows,filename){ const csv=rows.map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv); a.download=filename; a.click(); }
 
