@@ -310,7 +310,7 @@ function startApp(){
   // Setup export section
   setupExports();
   // Hide delete for staff (they can see log but admin deletes)
-  if(userRole!=='admin') document.getElementById('del-btn').style.display='none';
+  // All users can delete their own outlet's entries
   // Load data
   loadLog().then(()=>{ renderLog(); renderSummary(); });
 }
