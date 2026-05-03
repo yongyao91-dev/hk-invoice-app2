@@ -185,16 +185,36 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
       <button class="pay-btn" id="dt-credit" onclick="setDT('credit')" style="flex:1;padding:10px">📋 Credit Note</button>
     </div>
     <div class="lbl">Invoice Photo or PDF</div>
-    <div class="upzone" id="upzone">
-      <input type="file" id="fileInput" accept="image/*,application/pdf" multiple onchange="onFiles(this.files)">
-      <div class="uico">📎</div>
-      <p><strong>Tap to upload</strong><br>Select 1 or more photos/PDF<br><span style="font-size:11px;color:#555">Multi-page invoice? Select all pages at once</span></p>
+    <div id="upzone">
+      <!-- Hidden inputs -->
+      <input type="file" id="fileInput" accept="image/*,application/pdf" multiple onchange="onFiles(this.files)" style="display:none">
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" onchange="addCameraPhoto(this.files[0])" style="display:none">
+      
+      <!-- Two buttons -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div onclick="document.getElementById('cameraInput').click()" style="background:var(--s1);border:2px solid var(--border);border-radius:var(--r);padding:20px 12px;text-align:center;cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor='#e8c547'" onmouseout="this.style.borderColor='var(--border)'">
+          <div style="font-size:28px;margin-bottom:6px">📷</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text)">Take Photo</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">Camera</div>
+        </div>
+        <div onclick="document.getElementById('fileInput').click()" style="background:var(--s1);border:2px solid var(--border);border-radius:var(--r);padding:20px 12px;text-align:center;cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor='#e8c547'" onmouseout="this.style.borderColor='var(--border)'">
+          <div style="font-size:28px;margin-bottom:6px">🖼️</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text)">From Album</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">Multi-select OK</div>
+        </div>
+      </div>
+      
+      <!-- Photo stack preview -->
+      <div id="photo-stack" style="display:none;background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase" id="page-count-label">0 pages</span>
+          <button onclick="addMorePage()" style="background:none;border:1px dashed var(--border);border-radius:6px;color:var(--accent);font-size:10px;font-weight:700;padding:4px 10px;cursor:pointer;font-family:'Syne',sans-serif">+ Add Page</button>
+        </div>
+        <div id="thumb-row" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px"></div>
+        <button onclick="clearFile()" style="width:100%;margin-top:10px;padding:7px;background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:11px;font-weight:700;cursor:pointer;font-family:'Syne',sans-serif">✕ Clear All</button>
+      </div>
     </div>
-    <div class="preview-wrap" id="preview-wrap">
-      <img id="preview-img" style="display:none">
-      <div id="preview-pdf" class="pdf-prev" style="display:none"><span>📄</span><span id="pdf-name"></span></div>
-      <button class="clr-btn" onclick="clearFile()">×</button>
-    </div>
+    <!-- preview-wrap removed, using photo-stack instead -->
     <button class="btn-extract" id="btn-extract" onclick="doExtract()" disabled>✦ Extract Invoice Data</button>
     <div class="prog-wrap" id="prog-wrap">
       <div class="prog-row"><div class="spinner"></div><div style="font-size:12px;font-weight:600">Reading invoice with AI…</div></div>
@@ -380,53 +400,87 @@ function setOutlet(o){
 // ── FILE ──
 let activeFiles=[];
 
+function normalizeFile(file){
+  if(!file.type||file.type===''){
+    const ext=file.name.split('.').pop().toLowerCase();
+    const typeMap={jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',gif:'image/gif',webp:'image/webp',pdf:'application/pdf'};
+    return new File([file],file.name,{type:typeMap[ext]||'image/jpeg'});
+  }
+  return file;
+}
+
+function addCameraPhoto(file){
+  if(!file) return;
+  activeFiles.push(normalizeFile(file));
+  activeFile=activeFiles[0];
+  document.getElementById('cameraInput').value=''; // reset so same page can be added again
+  updatePhotoStack();
+}
+
+function addMorePage(){
+  document.getElementById('cameraInput').click();
+}
+
+function removePhoto(idx){
+  activeFiles.splice(idx,1);
+  activeFile=activeFiles[0]||null;
+  updatePhotoStack();
+}
+
 function onFiles(fileList){
   if(!fileList||fileList.length===0) return;
-  activeFiles=Array.from(fileList).map(file=>{
-    if(!file.type||file.type===''){
-      const ext=file.name.split('.').pop().toLowerCase();
-      const typeMap={jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',gif:'image/gif',webp:'image/webp',pdf:'application/pdf'};
-      return new File([file],file.name,{type:typeMap[ext]||'image/jpeg'});
-    }
-    return file;
-  });
-  activeFile=activeFiles[0]; // keep for compatibility
-  const wrap=document.getElementById('preview-wrap');
-  const img=document.getElementById('preview-img');
-  const pdf=document.getElementById('preview-pdf');
-  wrap.style.display='block';
-  document.getElementById('upzone').style.display='none';
-  if(activeFiles.length===1){
-    const file=activeFiles[0];
-    if(file.type.startsWith('image/')){
-      img.src=URL.createObjectURL(file);
-      img.style.display='block';
-      pdf.style.display='none';
-    } else {
-      img.style.display='none';
-      pdf.style.display='block';
-      document.getElementById('pdf-name').textContent=file.name;
-    }
-  } else {
-    // Multiple files — show grid preview
-    img.style.display='none';
-    pdf.style.display='block';
-    document.getElementById('pdf-name').innerHTML=
-      '<div style="font-size:13px;color:#e8c547;font-weight:700">'+activeFiles.length+' pages selected</div>'+
-      '<div style="font-size:11px;color:#666;margin-top:4px">'+activeFiles.map(f=>f.name).join(', ')+'</div>';
+  activeFiles=[...activeFiles, ...Array.from(fileList).map(normalizeFile)];
+  activeFile=activeFiles[0];
+  updatePhotoStack();
+}
+
+function updatePhotoStack(){
+  const stack=document.getElementById('photo-stack');
+  const thumbRow=document.getElementById('thumb-row');
+  const label=document.getElementById('page-count-label');
+  const btn=document.getElementById('btn-extract');
+  if(activeFiles.length===0){
+    stack.style.display='none';
+    btn.disabled=true;
+    return;
   }
-  document.getElementById('btn-extract').disabled=false;
+  stack.style.display='block';
+  btn.disabled=false;
+  label.textContent=activeFiles.length+' page'+(activeFiles.length>1?'s':'')+' ready';
+  thumbRow.innerHTML='';
+  activeFiles.forEach((f,i)=>{
+    const div=document.createElement('div');
+    div.style.cssText='position:relative;flex-shrink:0;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1.5px solid var(--border);background:var(--s2)';
+    if(f.type.startsWith('image/')){
+      const img=document.createElement('img');
+      img.src=URL.createObjectURL(f);
+      img.style.cssText='width:100%;height:100%;object-fit:cover';
+      div.appendChild(img);
+    } else {
+      div.innerHTML='<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px"><span style="font-size:20px">📄</span><span style="font-size:9px;color:var(--muted)">PDF</span></div>';
+    }
+    const badge=document.createElement('div');
+    badge.style.cssText='position:absolute;top:2px;left:2px;background:var(--accent);color:#000;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px';
+    badge.textContent='P'+(i+1);
+    div.appendChild(badge);
+    const rm=document.createElement('button');
+    rm.style.cssText='position:absolute;top:2px;right:2px;background:rgba(0,0,0,.7);border:none;border-radius:50%;width:18px;height:18px;color:white;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0';
+    rm.textContent='×';
+    rm.onclick=()=>removePhoto(i);
+    div.appendChild(rm);
+    thumbRow.appendChild(div);
+  });
   document.getElementById('result-card').classList.remove('on');
 }
 
 function clearFile(){
   activeFile=null; activeFiles=[];
-  document.getElementById('preview-wrap').style.display='none';
-  document.getElementById('upzone').style.display='block';
   document.getElementById('btn-extract').disabled=true;
   document.getElementById('result-card').classList.remove('on');
   document.getElementById('prog-wrap').classList.remove('on');
   document.getElementById('fileInput').value='';
+  document.getElementById('cameraInput').value='';
+  updatePhotoStack();
   payStatus='unpaid'; docType='invoice'; setDT('invoice');
 }
 
