@@ -186,9 +186,9 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
     </div>
     <div class="lbl">Invoice Photo or PDF</div>
     <div class="upzone" id="upzone">
-      <input type="file" id="fileInput" accept="image/*,application/pdf" onchange="onFile(this.files[0])">
+      <input type="file" id="fileInput" accept="image/*,application/pdf" multiple onchange="onFiles(this.files)">
       <div class="uico">📎</div>
-      <p><strong>Tap to upload</strong><br>Photo from WhatsApp or Camera</p>
+      <p><strong>Tap to upload</strong><br>Select 1 or more photos/PDF<br><span style="font-size:11px;color:#555">Multi-page invoice? Select all pages at once</span></p>
     </div>
     <div class="preview-wrap" id="preview-wrap">
       <img id="preview-img" style="display:none">
@@ -378,33 +378,49 @@ function setOutlet(o){
 }
 
 // ── FILE ──
-function onFile(file){
-  if(!file) return;
-  // Android sometimes returns empty type — force detect from extension
-  if(!file.type || file.type === '') {
-    const ext = file.name.split('.').pop().toLowerCase();
-    const typeMap = {jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',gif:'image/gif',webp:'image/webp',pdf:'application/pdf'};
-    const detectedType = typeMap[ext] || 'image/jpeg';
-    file = new File([file], file.name, {type: detectedType});
-  }
-  activeFile=file;
-  document.getElementById('preview-wrap').style.display='block';
+let activeFiles=[];
+
+function onFiles(fileList){
+  if(!fileList||fileList.length===0) return;
+  activeFiles=Array.from(fileList).map(file=>{
+    if(!file.type||file.type===''){
+      const ext=file.name.split('.').pop().toLowerCase();
+      const typeMap={jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',gif:'image/gif',webp:'image/webp',pdf:'application/pdf'};
+      return new File([file],file.name,{type:typeMap[ext]||'image/jpeg'});
+    }
+    return file;
+  });
+  activeFile=activeFiles[0]; // keep for compatibility
+  const wrap=document.getElementById('preview-wrap');
+  const img=document.getElementById('preview-img');
+  const pdf=document.getElementById('preview-pdf');
+  wrap.style.display='block';
   document.getElementById('upzone').style.display='none';
-  if(file.type.startsWith('image/')){
-    document.getElementById('preview-img').src=URL.createObjectURL(file);
-    document.getElementById('preview-img').style.display='block';
-    document.getElementById('preview-pdf').style.display='none';
+  if(activeFiles.length===1){
+    const file=activeFiles[0];
+    if(file.type.startsWith('image/')){
+      img.src=URL.createObjectURL(file);
+      img.style.display='block';
+      pdf.style.display='none';
+    } else {
+      img.style.display='none';
+      pdf.style.display='block';
+      document.getElementById('pdf-name').textContent=file.name;
+    }
   } else {
-    document.getElementById('preview-img').style.display='none';
-    document.getElementById('preview-pdf').style.display='block';
-    document.getElementById('pdf-name').textContent=file.name;
+    // Multiple files — show grid preview
+    img.style.display='none';
+    pdf.style.display='block';
+    document.getElementById('pdf-name').innerHTML=
+      '<div style="font-size:13px;color:#e8c547;font-weight:700">'+activeFiles.length+' pages selected</div>'+
+      '<div style="font-size:11px;color:#666;margin-top:4px">'+activeFiles.map(f=>f.name).join(', ')+'</div>';
   }
   document.getElementById('btn-extract').disabled=false;
   document.getElementById('result-card').classList.remove('on');
 }
 
 function clearFile(){
-  activeFile=null;
+  activeFile=null; activeFiles=[];
   document.getElementById('preview-wrap').style.display='none';
   document.getElementById('upzone').style.display='block';
   document.getElementById('btn-extract').disabled=true;
@@ -424,8 +440,13 @@ async function doExtract(){
   let p=0;
   progTimer=setInterval(()=>{ p=Math.min(p+Math.random()*18,88); document.getElementById('prog-fill').style.width=p+'%'; },400);
   try {
-    const b64=await toB64(activeFile);
-    const r=await fetch('/api/extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageBase64:b64,mediaType:activeFile.type==='application/pdf'?'application/pdf':'image/jpeg'})});
+    // Build array of all pages as base64
+    const filesToSend = activeFiles.length > 0 ? activeFiles : [activeFile];
+    const pages = await Promise.all(filesToSend.map(async f => ({
+      b64: await toB64(f),
+      mediaType: f.type==='application/pdf'?'application/pdf':'image/jpeg'
+    })));
+    const r=await fetch('/api/extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pages, imageBase64:pages[0].b64, mediaType:pages[0].mediaType})});
     const j=await r.json();
     clearInterval(progTimer);
     document.getElementById('prog-fill').style.width='100%';
