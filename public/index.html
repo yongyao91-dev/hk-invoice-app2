@@ -155,7 +155,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
       <option value="GGU">GGU · USJ</option>
     </select>
     <label class="login-label">Password</label>
-    <input class="login-input" type="password" id="login-pass" placeholder="Enter password" onkeydown="if(event.key==='Enter') doLogin()">
+    <input class="login-input" type="password" id="login-pass" placeholder="Enter password" autocomplete="new-password" autocorrect="off" autocapitalize="off" onkeydown="if(event.key==='Enter') doLogin()">
     <button class="login-btn" id="login-btn" onclick="doLogin()">Sign In</button>
     <div class="login-err" id="login-err"></div>
   </div>
@@ -264,20 +264,19 @@ const OUTLET_NAMES={HKP:'HKP · Puchong',HKK:'HKK · Klang',HKBJ:'HKBJ · Bukit 
 async function doLogin(){
   const outletVal=document.getElementById('login-outlet').value;
   const pass=document.getElementById('login-pass').value;
-  const btn=document.getElementById('login-btn');
   const err=document.getElementById('login-err');
   if(!pass){ err.textContent='Enter password'; return; }
-  btn.disabled=true; btn.textContent='Signing in…'; err.textContent='';
-  try {
-    const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({outlet:outletVal,password:pass})});
-    const j=await r.json();
-    if(!j.success) throw new Error(j.error||'Wrong password');
-    userRole=j.role; userOutlet=j.outlet;
-    sessionStorage.setItem('hkSession',JSON.stringify({role:userRole,outlet:userOutlet}));
-    startApp();
-  } catch(e){ err.textContent=e.message; }
-  btn.disabled=false; btn.textContent='Sign In';
+  err.textContent='';
+  // Simple frontend password check
+  const passwords={ADMIN:'admin888',HKP:'hkp123',HKK:'hkk123',HKBJ:'hkbj123',GGC:'ggc123',GGU:'ggu123'};
+  const key=outletVal.toUpperCase();
+  if(passwords[key]!==pass){ err.textContent='Wrong password'; return; }
+  userRole=key==='ADMIN'?'admin':'staff';
+  userOutlet=key==='ADMIN'?'ALL':key;
+  sessionStorage.setItem('hkSession',JSON.stringify({role:userRole,outlet:userOutlet}));
+  startApp();
 }
+
 
 function doLogout(){
   sessionStorage.removeItem('hkSession');
