@@ -179,6 +179,11 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
   <div id="v-capture" class="view on">
     <div class="lbl">Outlet</div>
     <div class="outlets" id="outlet-pills"></div>
+    <div class="lbl">Document Type</div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="pay-btn a-bank" id="dt-invoice" onclick="setDT('invoice')" style="flex:1;padding:10px">📄 Invoice</button>
+      <button class="pay-btn" id="dt-credit" onclick="setDT('credit')" style="flex:1;padding:10px">📋 Credit Note</button>
+    </div>
     <div class="lbl">Invoice Photo or PDF</div>
     <div class="upzone" id="upzone">
       <input type="file" id="fileInput" accept="image/*,application/pdf" onchange="onFile(this.files[0])">
@@ -232,6 +237,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
       <div class="scard"><div class="sl">Unpaid (RM)</div><div class="sv" id="s-unpaid" style="color:var(--err)">0.00</div></div>
       <div class="scard"><div class="sl">Suppliers</div><div class="sv w" id="s-sups">0</div></div>
     </div>
+    <div id="s-credit-info" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--ok);margin-bottom:12px;text-align:center"></div>
     <div class="lbl">Supplier Breakdown</div>
     <div id="sup-list"></div>
     <div id="export-section"></div>
@@ -254,7 +260,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 let userRole='', userOutlet='', outlet='';
 let logFilter='ALL', sumOutlet='ALL';
 let activeId=null, extracted=null, payStatus='unpaid';
-let log=[], progTimer=null, itemCount=0, activeFile=null;
+let log=[], progTimer=null, itemCount=0, activeFile=null, docType='invoice';
 window._total=0;
 
 const OUTLETS=['HKP','HKK','HKBJ','GGC','GGU'];
@@ -405,7 +411,7 @@ function clearFile(){
   document.getElementById('result-card').classList.remove('on');
   document.getElementById('prog-wrap').classList.remove('on');
   document.getElementById('fileInput').value='';
-  payStatus='unpaid';
+  payStatus='unpaid'; docType='invoice'; setDT('invoice');
 }
 
 // ── EXTRACT ──
@@ -492,6 +498,20 @@ function addRow(){
   const c=document.getElementById('rc-items'); c.insertBefore(div,c.lastElementChild);
 }
 function setPS(s){ payStatus=s; ['unpaid','cash','bank','cheque'].forEach(x=>{ const b=document.getElementById('pb-'+x); if(b) b.className='pay-btn'+(x===s?' a-'+s:''); }); }
+function setDT(t){
+  docType=t;
+  const inv=document.getElementById('dt-invoice');
+  const crd=document.getElementById('dt-credit');
+  if(inv) inv.className='pay-btn'+(t==='invoice'?' a-bank':'');
+  if(crd) crd.className='pay-btn'+(t==='credit'?' a-unpaid':'');
+  // flip total sign on result card if already extracted
+  const totalEl=document.getElementById('total-disp');
+  if(totalEl && totalEl.value){
+    const v=Math.abs(parseFloat(totalEl.value)||0);
+    totalEl.value=(t==='credit'?-v:v).toFixed(2);
+    window._total=parseFloat(totalEl.value);
+  }
+}
 function showErr(msg){ document.getElementById('rc-fn').textContent='Error'; document.getElementById('rc-fields').innerHTML='<div style="padding:14px;font-size:11px;color:var(--err);font-family:\'DM Mono\',monospace;word-break:break-all">'+msg+'</div>'; document.getElementById('rc-items').innerHTML=''; document.getElementById('result-card').classList.add('on'); }
 function discardResult(){ document.getElementById('result-card').classList.remove('on'); }
 
@@ -500,7 +520,7 @@ async function confirmSave(){
   btn.disabled=true; btn.textContent='Saving…';
   const items=[];
   for(let i=0;i<itemCount;i++){ const desc=document.getElementById('id-'+i)?.value||'',qty=document.getElementById('iq-'+i)?.value||'',up=parseFloat(document.getElementById('iu-'+i)?.value)||0,amt=parseFloat(document.getElementById('ia-'+i)?.value)||0; if(desc&&amt>0) items.push({desc,qty,unit_price:up,amount:amt}); }
-  const invoice={outlet,supplier:document.getElementById('e-sup')?.value||'',invoice_no:document.getElementById('e-inv')?.value||'',date:document.getElementById('e-date')?.value||'',total:parseFloat(document.getElementById('total-disp')?.value)||window._total||0,items,notes:extracted?.notes||'',payment_status:payStatus};
+  const invoice={outlet,supplier:document.getElementById('e-sup')?.value||'',invoice_no:document.getElementById('e-inv')?.value||'',date:document.getElementById('e-date')?.value||'',total:parseFloat(document.getElementById('total-disp')?.value)||window._total||0,items,notes:extracted?.notes||'',payment_status:payStatus,doc_type:docType};
   try {
     const r=await fetch('/api/invoices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(invoice)});
     const j=await r.json();
@@ -572,11 +592,17 @@ async function deleteEntry(){
 function setSumOutlet(el,o){ document.querySelectorAll('#sum-filters .fchip').forEach(x=>x.classList.remove('on')); el.classList.add('on'); sumOutlet=o; renderSummary(); }
 function renderSummary(){
   const base=sumOutlet==='ALL'?log:log.filter(e=>e.outlet===sumOutlet);
+  const invoices=base.filter(e=>e.doc_type!=='credit');
+  const credits=base.filter(e=>e.doc_type==='credit');
   const total=base.reduce((s,e)=>s+Number(e.total||0),0);
+  const creditTotal=credits.reduce((s,e)=>s+Math.abs(Number(e.total||0)),0);
   const unpaid=base.filter(e=>!e.payment_status||e.payment_status==='unpaid').reduce((s,e)=>s+Number(e.total||0),0);
   const sups=[...new Set(base.map(e=>e.supplier).filter(Boolean))];
   document.getElementById('s-count').textContent=base.length;
   document.getElementById('s-total').textContent=total.toFixed(2);
+  // Show credit note info if any
+  const creditInfo=document.getElementById('s-credit-info');
+  if(creditInfo) creditInfo.textContent=creditTotal>0?'Credit Notes: -RM '+creditTotal.toFixed(2)+' | Net: RM '+(total+creditTotal).toFixed(2):'';
   document.getElementById('s-unpaid').textContent=unpaid.toFixed(2);
   document.getElementById('s-sups').textContent=sups.length;
   const bd={};
@@ -588,7 +614,7 @@ function renderSummary(){
 
 // ── EXPORT ──
 function getExportEntries(outletFilter){ const base=outletFilter&&outletFilter!=='ALL'?log.filter(e=>e.outlet===outletFilter):log; return getDateFiltered(base); }
-function exportCSV(outletFilter){ const entries=getExportEntries(outletFilter); if(!entries.length){ showToast('No data'); return; } const rows=[['Outlet','Supplier','Invoice No','Date','Total (RM)','Payment Status']]; entries.forEach(e=>rows.push([e.outlet,e.supplier,e.invoice_no||'',fmtD(e.date),Number(e.total).toFixed(2),e.payment_status||'unpaid'])); dlCSV(rows,'Invoices_'+(outletFilter||'ALL')+'_'+today()+'.csv'); showToast('Exported ✓'); }
+function exportCSV(outletFilter){ const entries=getExportEntries(outletFilter); if(!entries.length){ showToast('No data'); return; } const rows=[['Type','Outlet','Supplier','Invoice No','Date','Total (RM)','Payment Status']]; entries.forEach(e=>rows.push([e.doc_type==='credit'?'Credit Note':'Invoice',e.outlet,e.supplier,e.invoice_no||'',fmtD(e.date),Number(e.total).toFixed(2),e.payment_status||'unpaid'])); dlCSV(rows,'Invoices_'+(outletFilter||'ALL')+'_'+today()+'.csv'); showToast('Exported ✓'); }
 function exportStock(outletFilter){ const entries=getExportEntries(outletFilter); const rows=[['Outlet','Supplier','Invoice No','Date','Item','Qty','Unit Price (RM)','Total Cost (RM)','Payment Status']]; entries.forEach(e=>{ (e.items||[]).filter(i=>i.desc||i.amount).forEach(i=>rows.push([e.outlet,e.supplier,e.invoice_no||'',fmtD(e.date),i.desc||'',i.qty||'',Number(i.unit_price||0).toFixed(2),Number(i.amount||0).toFixed(2),e.payment_status||'unpaid'])); }); if(rows.length<=1){ showToast('No line items found'); return; } dlCSV(rows,'StockCost_'+(outletFilter||'ALL')+'_'+today()+'.csv'); showToast('Stock report exported ✓'); }
 function dlCSV(rows,filename){ const csv=rows.map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv); a.download=filename; a.click(); }
 
