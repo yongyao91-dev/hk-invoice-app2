@@ -453,7 +453,9 @@ function renderResult(d,fname){
     (d.notes?'<div class="frow"><span class="fkey">Notes</span><span class="fval" style="font-size:11px;color:var(--muted)">'+d.notes+'</span></div>':'');
   const es="background:transparent;border:none;border-bottom:1px dashed var(--border);font-family:'DM Mono',monospace;font-size:11px;outline:none;padding:2px 0;width:100%;color:var(--text)";
   const items=(d.items||[]).filter(i=>i.desc||i.amount);
-  itemCount=items.length||1; window._total=Number(d.total||0);
+  itemCount=items.length||1;
+  const rawTotal=Number(d.total||0);
+  window._total=docType==='credit'?-Math.abs(rawTotal):rawTotal;
   document.getElementById('rc-items').innerHTML=
     '<div style="font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:8px 0 6px;border-top:1px solid var(--border)">Line Items</div>'+
     '<div style="display:grid;grid-template-columns:1fr 44px 56px 64px;gap:3px;padding:3px 0;border-bottom:1px solid var(--border);margin-bottom:3px">'+
@@ -474,7 +476,7 @@ function renderResult(d,fname){
       '<button onclick="addRow()" style="background:none;border:1px dashed var(--border);border-radius:6px;color:var(--muted);font-size:10px;font-weight:700;padding:4px 10px;cursor:pointer;font-family:\'Syne\',sans-serif">+ Row</button>'+
       '<div style="display:flex;align-items:center;gap:8px">'+
         '<span style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">TOTAL</span>'+
-        '<input id="total-disp" type="number" value="'+Number(d.total||0).toFixed(2)+'" oninput="window._total=parseFloat(this.value)||0" style="background:transparent;border:none;border-bottom:1.5px solid var(--accent);color:var(--accent);font-family:\'DM Mono\',monospace;font-size:16px;font-weight:500;text-align:right;width:100px;outline:none;padding:2px 0">'+
+        '<input id="total-disp" type="number" value="'+(docType==="credit"?-Math.abs(Number(d.total||0)):Number(d.total||0)).toFixed(2)+'" oninput="window._total=parseFloat(this.value)||0" style="background:transparent;border:none;border-bottom:1.5px solid '+(docType==="credit"?"#e05555":"#e8c547")+';color:'+(docType==="credit"?"#e05555":"#e8c547")+';font-family:\'DM Mono\',monospace;font-size:16px;font-weight:500;text-align:right;width:100px;outline:none;padding:2px 0">'+
       '</div>'+
     '</div>';
   setPS('unpaid');
@@ -522,7 +524,7 @@ async function confirmSave(){
   btn.disabled=true; btn.textContent='Saving…';
   const items=[];
   for(let i=0;i<itemCount;i++){ const desc=document.getElementById('id-'+i)?.value||'',qty=document.getElementById('iq-'+i)?.value||'',up=parseFloat(document.getElementById('iu-'+i)?.value)||0,amt=parseFloat(document.getElementById('ia-'+i)?.value)||0; if(desc&&amt>0) items.push({desc,qty,unit_price:up,amount:amt}); }
-  const invoice={outlet,supplier:document.getElementById('e-sup')?.value||'',invoice_no:document.getElementById('e-inv')?.value||'',date:document.getElementById('e-date')?.value||'',total:parseFloat(document.getElementById('total-disp')?.value)||window._total||0,items,notes:extracted?.notes||'',payment_status:payStatus,doc_type:docType};
+  const invoice={outlet,supplier:document.getElementById('e-sup')?.value||'',invoice_no:document.getElementById('e-inv')?.value||'',date:document.getElementById('e-date')?.value||'',total:(()=>{ const v=parseFloat(document.getElementById('total-disp')?.value)||window._total||0; return docType==='credit'?-Math.abs(v):Math.abs(v); })(),items,notes:extracted?.notes||'',payment_status:payStatus,doc_type:docType};
   try {
     const r=await fetch('/api/invoices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(invoice)});
     const j=await r.json();
