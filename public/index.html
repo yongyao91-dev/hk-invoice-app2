@@ -419,7 +419,7 @@ async function doExtract(){
   progTimer=setInterval(()=>{ p=Math.min(p+Math.random()*18,88); document.getElementById('prog-fill').style.width=p+'%'; },400);
   try {
     const b64=await toB64(activeFile);
-    const r=await fetch('/api/extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageBase64:b64,mediaType:activeFile.type})});
+    const r=await fetch('/api/extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageBase64:b64,mediaType:activeFile.type==='application/pdf'?'application/pdf':'image/jpeg'})});
     const j=await r.json();
     clearInterval(progTimer);
     document.getElementById('prog-fill').style.width='100%';
@@ -499,7 +499,7 @@ async function confirmSave(){
   const btn=document.getElementById('btn-confirm');
   btn.disabled=true; btn.textContent='Saving…';
   const items=[];
-  for(let i=0;i<itemCount;i++){ const desc=document.getElementById('id-'+i)?.value||'',qty=document.getElementById('iq-'+i)?.value||'',up=parseFloat(document.getElementById('iu-'+i)?.value)||0,amt=parseFloat(document.getElementById('ia-'+i)?.value)||0; if(desc||amt) items.push({desc,qty,unit_price:up,amount:amt}); }
+  for(let i=0;i<itemCount;i++){ const desc=document.getElementById('id-'+i)?.value||'',qty=document.getElementById('iq-'+i)?.value||'',up=parseFloat(document.getElementById('iu-'+i)?.value)||0,amt=parseFloat(document.getElementById('ia-'+i)?.value)||0; if(desc&&amt>0) items.push({desc,qty,unit_price:up,amount:amt}); }
   const invoice={outlet,supplier:document.getElementById('e-sup')?.value||'',invoice_no:document.getElementById('e-inv')?.value||'',date:document.getElementById('e-date')?.value||'',total:parseFloat(document.getElementById('total-disp')?.value)||window._total||0,items,notes:extracted?.notes||'',payment_status:payStatus};
   try {
     const r=await fetch('/api/invoices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(invoice)});
@@ -595,7 +595,32 @@ function dlCSV(rows,filename){ const csv=rows.map(r=>r.map(v=>'"'+String(v||'').
 // ── UTILS ──
 function fmtD(d){ if(!d) return '—'; if(d.includes('-')){ const[y,m,dd]=d.split('-'); return dd+'/'+m+'/'+y; } return d; }
 function today(){ return new Date().toISOString().slice(0,10); }
-function toB64(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=()=>rej(new Error('Read failed')); r.readAsDataURL(file); }); }
+function toB64(file){
+  return new Promise((res,rej)=>{
+    if(file.type==='application/pdf'){
+      const r=new FileReader();
+      r.onload=()=>res(r.result.split(',')[1]);
+      r.onerror=()=>rej(new Error('Read failed'));
+      r.readAsDataURL(file); return;
+    }
+    // Compress image before upload — fixes large Android photos
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      const MAX=1280;
+      let w=img.width, h=img.height;
+      if(w>MAX||h>MAX){ if(w>h){ h=Math.round(h*MAX/w); w=MAX; } else { w=Math.round(w*MAX/h); h=MAX; } }
+      const canvas=document.createElement('canvas');
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      const b64=canvas.toDataURL('image/jpeg',0.85).split(',')[1];
+      res(b64);
+    };
+    img.onerror=()=>rej(new Error('Image load failed'));
+    img.src=url;
+  });
+}
 function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on'); setTimeout(()=>t.classList.remove('on'),2500); }
 
 checkSession();
