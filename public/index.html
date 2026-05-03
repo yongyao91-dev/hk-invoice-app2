@@ -374,7 +374,15 @@ function setOutlet(o){
 
 // ── FILE ──
 function onFile(file){
-  if(!file) return; activeFile=file;
+  if(!file) return;
+  // Android sometimes returns empty type — force detect from extension
+  if(!file.type || file.type === '') {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const typeMap = {jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',gif:'image/gif',webp:'image/webp',pdf:'application/pdf'};
+    const detectedType = typeMap[ext] || 'image/jpeg';
+    file = new File([file], file.name, {type: detectedType});
+  }
+  activeFile=file;
   document.getElementById('preview-wrap').style.display='block';
   document.getElementById('upzone').style.display='none';
   if(file.type.startsWith('image/')){
