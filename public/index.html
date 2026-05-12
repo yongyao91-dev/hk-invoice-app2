@@ -148,11 +148,12 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
     <label class="login-label">Outlet</label>
     <select class="login-select" id="login-outlet">
       <option value="ADMIN">Admin (All Outlets)</option>
-      <option value="HKP">HKP · Puchong</option>
+      <option value="HKSB">HKSB · Puchong</option>
       <option value="HKK">HKK · Klang</option>
       <option value="HKBJ">HKBJ · Bukit Jalil</option>
       <option value="GGC">GGC · Puchong</option>
       <option value="GGU">GGU · USJ</option>
+      <option value="HKH">HKH · Holding</option>
     </select>
     <label class="login-label">Password</label>
     <input class="login-input" type="password" id="login-pass" placeholder="Enter password" autocomplete="new-password" autocorrect="off" autocapitalize="off" onkeydown="if(event.key==='Enter') doLogin()">
@@ -173,6 +174,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
     <div class="tbtn on" id="tb-capture" onclick="tab('capture')">📷 Capture</div>
     <div class="tbtn" id="tb-log" onclick="tab('log')">Log</div>
     <div class="tbtn" id="tb-summary" onclick="tab('summary')">Summary</div>
+    <div class="tbtn" id="tb-hkh" onclick="tab('hkh')" style="display:none">🏢 HKH</div>
   </div>
 
   <!-- CAPTURE -->
@@ -264,6 +266,103 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
   </div>
 </div>
 
+<!-- HKH TAB -->
+<div id="v-hkh" class="view">
+
+  <div style="background:rgba(232,197,71,.08);border:1px solid rgba(232,197,71,.2);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--muted)">
+    🏢 <strong style="color:var(--accent)">Herra Kokki Holding</strong> — invoices billed to HKH, allocate costs to outlets
+  </div>
+
+  <!-- STEP 1: Upload -->
+  <div class="lbl">Step 1 — Scan Invoice</div>
+  <div id="hkh-upzone" style="margin-bottom:14px">
+    <input type="file" id="hkh-fileInput" accept="image/*,application/pdf" multiple onchange="hkhOnFiles(this.files)" style="display:none">
+    <input type="file" id="hkh-cameraInput" accept="image/*" capture="environment" onchange="hkhAddCamera(this.files[0])" style="display:none">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div onclick="document.getElementById('hkh-cameraInput').click()" style="background:var(--s1);border:2px solid var(--border);border-radius:var(--r);padding:18px 12px;text-align:center;cursor:pointer">
+        <div style="font-size:26px;margin-bottom:4px">📷</div>
+        <div style="font-size:11px;font-weight:700">Take Photo</div>
+      </div>
+      <div onclick="document.getElementById('hkh-fileInput').click()" style="background:var(--s1);border:2px solid var(--border);border-radius:var(--r);padding:18px 12px;text-align:center;cursor:pointer">
+        <div style="font-size:26px;margin-bottom:4px">🖼️</div>
+        <div style="font-size:11px;font-weight:700">From Album</div>
+      </div>
+    </div>
+    <div id="hkh-photo-stack" style="display:none;background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span id="hkh-page-label" style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase">0 pages</span>
+        <button onclick="document.getElementById('hkh-cameraInput').click()" style="background:none;border:1px dashed var(--border);border-radius:6px;color:var(--accent);font-size:10px;font-weight:700;padding:4px 10px;cursor:pointer;font-family:'Syne',sans-serif">+ Add Page</button>
+      </div>
+      <div id="hkh-thumb-row" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px"></div>
+    </div>
+    <button class="btn-extract" id="hkh-btn-extract" onclick="hkhExtract()" disabled>✦ Extract Invoice Data</button>
+  </div>
+
+  <!-- STEP 2: Extracted fields -->
+  <div id="hkh-extracted" style="display:none">
+    <div style="background:var(--s1);border:1px solid var(--ok);border-radius:var(--r);padding:14px;margin-bottom:14px">
+      <div style="font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ok);margin-bottom:10px">Extracted ✓</div>
+      <div class="frow"><span class="fkey">Supplier</span><span class="fval"><input id="hkh-supplier" style="background:transparent;border:none;border-bottom:1px dashed var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;text-align:right;width:100%;outline:none"></span></div>
+      <div class="frow"><span class="fkey">Inv No.</span><span class="fval"><input id="hkh-invno" style="background:transparent;border:none;border-bottom:1px dashed var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;text-align:right;width:100%;outline:none"></span></div>
+      <div class="frow"><span class="fkey">Date</span><span class="fval"><input id="hkh-date" style="background:transparent;border:none;border-bottom:1px dashed var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;text-align:right;width:100%;outline:none"></span></div>
+      <div class="frow"><span class="fkey">Total</span><span class="fval" style="color:var(--accent);font-size:15px;font-family:'DM Mono',monospace" id="hkh-total-display">RM 0.00</span></div>
+    </div>
+
+    <!-- STEP 3: Paid By -->
+    <div class="lbl">Step 2 — Paid By</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px" id="paid-by-btns">
+      <button class="pay-btn" onclick="setPaidBy('HKH')" id="pby-HKH">HKH</button>
+      <button class="pay-btn" onclick="setPaidBy('HKSB')" id="pby-HKSB">HKSB</button>
+      <button class="pay-btn" onclick="setPaidBy('HKK')" id="pby-HKK">HKK</button>
+      <button class="pay-btn" onclick="setPaidBy('HKBJ')" id="pby-HKBJ">HKBJ</button>
+      <button class="pay-btn" onclick="setPaidBy('GGC')" id="pby-GGC">GGC</button>
+      <button class="pay-btn" onclick="setPaidBy('GGU')" id="pby-GGU">GGU</button>
+      <button class="pay-btn" onclick="setPaidBy('Yao')" id="pby-Yao">Yao</button>
+      <button class="pay-btn" onclick="setPaidBy('Jonathan')" id="pby-Jonathan">Jonathan</button>
+      <button class="pay-btn" onclick="setPaidBy('Ben')" id="pby-Ben">Ben</button>
+    </div>
+
+    <!-- STEP 4: Allocation -->
+    <div class="lbl">Step 3 — Cost Allocation</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button id="alloc-whole-btn" onclick="setAllocMode('whole')" style="flex:1;padding:10px;border-radius:8px;font-family:'Syne',sans-serif;font-size:11px;font-weight:800;cursor:pointer;border:1.5px solid var(--ok);background:rgba(76,175,125,.1);color:var(--ok)">Whole Invoice → 1 Outlet</button>
+      <button id="alloc-split-btn" onclick="setAllocMode('split')" style="flex:1;padding:10px;border-radius:8px;font-family:'Syne',sans-serif;font-size:11px;font-weight:800;cursor:pointer;border:1.5px solid var(--border);background:var(--s2);color:var(--muted)">Split by Line Item</button>
+    </div>
+
+    <!-- Whole invoice allocation -->
+    <div id="alloc-whole" style="margin-bottom:14px">
+      <div class="lbl">Assign Whole Invoice To</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="whole-outlet-btns">
+        <button class="pay-btn" onclick="setWholeOutlet('HKSB')" id="wo-HKSB">HKSB</button>
+        <button class="pay-btn" onclick="setWholeOutlet('HKK')" id="wo-HKK">HKK</button>
+        <button class="pay-btn" onclick="setWholeOutlet('HKBJ')" id="wo-HKBJ">HKBJ</button>
+        <button class="pay-btn" onclick="setWholeOutlet('GGC')" id="wo-GGC">GGC</button>
+        <button class="pay-btn" onclick="setWholeOutlet('GGU')" id="wo-GGU">GGU</button>
+        <button class="pay-btn" onclick="setWholeOutlet('HKH')" id="wo-HKH">HKH</button>
+      </div>
+    </div>
+
+    <!-- Split by line item -->
+    <div id="alloc-split" style="display:none;margin-bottom:14px">
+      <div id="hkh-line-items"></div>
+    </div>
+
+    <!-- Save -->
+    <button onclick="hkhSave()" style="width:100%;padding:14px;background:var(--accent);color:#0c0c0c;border:none;border-radius:var(--r);font-family:'Syne',sans-serif;font-size:14px;font-weight:800;cursor:pointer;letter-spacing:.04em;margin-bottom:14px">✓ Save HKH Invoice</button>
+    <button onclick="hkhReset()" style="width:100%;padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);color:var(--muted);font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer">Reset</button>
+  </div>
+
+  <!-- HKH LOG -->
+  <div id="hkh-log-section" style="margin-top:24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="lbl" style="margin-bottom:0">HKH Invoice Log</div>
+      <button onclick="exportHKHCSV()" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:10px;font-weight:700;padding:5px 10px;cursor:pointer;font-family:'Syne',sans-serif">⬇ Export</button>
+    </div>
+    <div id="hkh-log-list"></div>
+  </div>
+
+</div>
+
 <!-- MODAL -->
 <div id="modal-overlay">
   <div id="modal-box">
@@ -283,8 +382,9 @@ let activeId=null, extracted=null, payStatus='unpaid';
 let log=[], progTimer=null, itemCount=0, activeFile=null, docType='invoice';
 window._total=0;
 
-const OUTLETS=['HKP','HKK','HKBJ','GGC','GGU'];
-const OUTLET_NAMES={HKP:'HKP · Puchong',HKK:'HKK · Klang',HKBJ:'HKBJ · Bukit Jalil',GGC:'GGC · Puchong',GGU:'GGU · USJ'};
+const OUTLETS=['HKSB','HKK','HKBJ','GGC','GGU'];
+const HKH_OUTLETS=['HKSB','HKK','HKBJ','GGC','GGU','HKH'];
+const OUTLET_NAMES={HKP:'HKSB · Puchong',HKK:'HKK · Klang',HKBJ:'HKBJ · Bukit Jalil',GGC:'GGC · Puchong',GGU:'GGU · USJ'};
 
 // ── LOGIN ──
 async function doLogin(){
@@ -294,10 +394,10 @@ async function doLogin(){
   if(!pass){ err.textContent='Enter password'; return; }
   err.textContent='';
   // Simple frontend password check
-  const passwords={ADMIN:'admin888',HKP:'hkp123',HKK:'hkk123',HKBJ:'hkbj123',GGC:'ggc123',GGU:'ggu123'};
+  const passwords={ADMIN:'admin888',HKSB:'hksb123',HKK:'hkk123',HKBJ:'hkbj123',GGC:'ggc123',GGU:'ggu123',HKH:'hkh123'};
   const key=outletVal.toUpperCase();
   if(passwords[key]!==pass){ err.textContent='Wrong password'; return; }
-  userRole=key==='ADMIN'?'admin':'staff';
+  userRole=key==='ADMIN'?'admin':(key==='HKH'?'hkh':'staff');
   userOutlet=key==='ADMIN'?'ALL':key;
   sessionStorage.setItem('hkSession',JSON.stringify({role:userRole,outlet:userOutlet}));
   startApp();
@@ -330,6 +430,8 @@ function startApp(){
   // Setup export section
   setupExports();
   // Hide delete for staff (they can see log but admin deletes)
+  // Show HKH tab for admin only
+  if(userRole==='admin'||userRole==='hkh') showHKHTab();
   // All users can delete their own outlet's entries
   // Load data
   loadLog().then(()=>{ renderLog(); renderSummary(); });
@@ -343,7 +445,7 @@ function setupOutletPills(){
 }
 
 function setupFilters(){
-  const available=userRole==='admin'?['ALL',...OUTLETS]:[userOutlet];
+  const available=(userRole==='admin'||userRole==='hkh')?['ALL',...OUTLETS]:[userOutlet];
   logFilter=available[0]; sumOutlet=available[0];
   const logHtml=available.map((o,i)=>'<div class="fchip'+(i===0?' on':'')+'" onclick="setFilter(this,\''+o+'\')">'+( o==='ALL'?'All':o)+'</div>').join('');
   document.getElementById('log-filters').innerHTML=logHtml;
@@ -353,7 +455,7 @@ function setupFilters(){
 
 function setupExports(){
   const sec=document.getElementById('export-section');
-  if(userRole==='admin'){
+  if(userRole==='admin'||userRole==='hkh'){
     const outlets=[...OUTLETS,'ALL'];
     sec.innerHTML=
       '<div class="lbl" style="margin-top:20px">📋 Accountant Export (CSV)</div>'+
@@ -377,7 +479,7 @@ async function loadLog(){
     const j=await r.json();
     if(j.success){
       // Staff only see their outlet
-      log=userRole==='admin'?j.data|[]:(j.data||[]).filter(e=>e.outlet===userOutlet);
+      log=(userRole==='admin'||userRole==='hkh')?(j.data||[]):(j.data||[]).filter(e=>e.outlet===userOutlet);
       document.getElementById('sync-dot').className='sync-dot ok';
     } else throw new Error(j.error);
   } catch(e){ document.getElementById('sync-dot').className='sync-dot err'; }
@@ -385,9 +487,10 @@ async function loadLog(){
 
 // ── TABS ──
 function tab(t){
-  ['capture','log','summary'].forEach(n=>{ document.getElementById('v-'+n).classList.toggle('on',n===t); document.getElementById('tb-'+n).classList.toggle('on',n===t); });
+  ['capture','log','summary','hkh'].forEach(n=>{ const v=document.getElementById('v-'+n); const tb=document.getElementById('tb-'+n); if(v) v.classList.toggle('on',n===t); if(tb) tb.classList.toggle('on',n===t); });
   if(t==='log'){ loadLog().then(renderLog); }
   if(t==='summary'){ loadLog().then(renderSummary); }
+  if(t==='hkh'){ loadHKHLog().then(renderHKHLog); }
 }
 
 // ── OUTLET ──
@@ -728,7 +831,296 @@ function toB64(file){
 }
 function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on'); setTimeout(()=>t.classList.remove('on'),2500); }
 
+// ── HKH STATE ──
+let hkhFiles=[], hkhExtracted=null, hkhPaidBy='', hkhWholeOutlet='', hkhAllocMode='whole', hkhLog=[];
+
+// ── HKH TAB SHOW ──
+function showHKHTab(){
+  document.getElementById('tb-hkh').style.display='';
+}
+
+// ── HKH FILE HANDLING ──
+function hkhOnFiles(fileList){
+  if(!fileList||fileList.length===0) return;
+  hkhFiles=[...hkhFiles,...Array.from(fileList).map(normalizeFile)];
+  hkhUpdateStack();
+}
+function hkhAddCamera(file){
+  if(!file) return;
+  hkhFiles.push(normalizeFile(file));
+  document.getElementById('hkh-cameraInput').value='';
+  hkhUpdateStack();
+}
+function hkhRemovePhoto(i){ hkhFiles.splice(i,1); hkhUpdateStack(); }
+function hkhUpdateStack(){
+  const stack=document.getElementById('hkh-photo-stack');
+  const thumbRow=document.getElementById('hkh-thumb-row');
+  const label=document.getElementById('hkh-page-label');
+  const btn=document.getElementById('hkh-btn-extract');
+  if(hkhFiles.length===0){ stack.style.display='none'; btn.disabled=true; return; }
+  stack.style.display='block'; btn.disabled=false;
+  label.textContent=hkhFiles.length+' page'+(hkhFiles.length>1?'s':'')+' ready';
+  thumbRow.innerHTML='';
+  hkhFiles.forEach((f,i)=>{
+    const div=document.createElement('div');
+    div.style.cssText='position:relative;flex-shrink:0;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1.5px solid var(--border);background:var(--s2)';
+    if(f.type.startsWith('image/')){
+      const img=document.createElement('img');
+      img.src=URL.createObjectURL(f);
+      img.style.cssText='width:100%;height:100%;object-fit:cover';
+      div.appendChild(img);
+    } else {
+      div.innerHTML='<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font-size:20px">📄</span></div>';
+    }
+    const badge=document.createElement('div');
+    badge.style.cssText='position:absolute;top:2px;left:2px;background:var(--accent);color:#000;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px';
+    badge.textContent='P'+(i+1);
+    div.appendChild(badge);
+    const rm=document.createElement('button');
+    rm.style.cssText='position:absolute;top:2px;right:2px;background:rgba(0,0,0,.7);border:none;border-radius:50%;width:18px;height:18px;color:white;font-size:11px;cursor:pointer;padding:0';
+    rm.textContent='×'; rm.onclick=()=>hkhRemovePhoto(i);
+    div.appendChild(rm);
+    thumbRow.appendChild(div);
+  });
+}
+
+// ── HKH EXTRACT ──
+async function hkhExtract(){
+  if(!hkhFiles.length) return;
+  const btn=document.getElementById('hkh-btn-extract');
+  btn.disabled=true; btn.textContent='Extracting…';
+  try {
+    const pages=await Promise.all(hkhFiles.map(async f=>({
+      b64:await toB64(f),
+      mediaType:f.type==='application/pdf'?'application/pdf':'image/jpeg'
+    })));
+    const r=await fetch('/api/extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pages,imageBase64:pages[0].b64,mediaType:pages[0].mediaType})});
+    const j=await r.json();
+    if(!j.success) throw new Error(j.error||'Extraction failed');
+    hkhExtracted=j.data;
+    hkhPopulateFields(j.data);
+    document.getElementById('hkh-extracted').style.display='block';
+    showToast('Extracted ✓');
+  } catch(e){ showToast('Error: '+e.message); }
+  btn.disabled=false; btn.innerHTML='✦ Extract Invoice Data';
+}
+
+function hkhPopulateFields(d){
+  document.getElementById('hkh-supplier').value=d.supplier||'';
+  document.getElementById('hkh-invno').value=d.invoice_no||'';
+  document.getElementById('hkh-date').value=d.date||'';
+  document.getElementById('hkh-total-display').textContent='RM '+Number(d.total||0).toFixed(2);
+  // Build line items for split allocation
+  const items=(d.items||[]).filter(i=>i.desc||i.amount);
+  const OUTLETS=['HKSB','HKK','HKBJ','GGC','GGU','HKH'];
+  const es="background:var(--s2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:11px;padding:5px 7px;outline:none;width:52px;text-align:center";
+  document.getElementById('hkh-line-items').innerHTML=items.map((item,idx)=>`
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:600;color:var(--text);flex:1">${item.desc||'Item '+(idx+1)}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);flex-shrink:0">RM ${Number(item.amount||0).toFixed(2)}</span>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:8px">Total qty: ${item.qty||'—'} · Unit price: RM ${Number(item.unit_price||0).toFixed(2)}</div>
+      <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">Allocate qty to outlets:</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+        ${OUTLETS.map(o=>`<div style="text-align:center">
+          <div style="font-size:9px;font-weight:700;color:var(--muted);margin-bottom:3px">${o}</div>
+          <input type="number" id="alloc-${idx}-${o}" placeholder="0" min="0" style="${es}" oninput="updateItemAlloc(${idx})">
+        </div>`).join('')}
+      </div>
+      <div style="margin-top:8px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace" id="alloc-status-${idx}">Unallocated: ${item.qty||'—'}</div>
+    </div>
+  `).join('')||'<div style="color:var(--muted);font-size:12px;padding:10px">No line items extracted. Please check the invoice.</div>';
+}
+
+function updateItemAlloc(idx){
+  const item=(hkhExtracted.items||[]).filter(i=>i.desc||i.amount)[idx];
+  if(!item) return;
+  const OUTLETS=['HKSB','HKK','HKBJ','GGC','GGU','HKH'];
+  const totalQty=parseFloat((item.qty||'0').replace(/[^0-9.]/g,''))||0;
+  let allocated=0;
+  OUTLETS.forEach(o=>{ allocated+=parseFloat(document.getElementById('alloc-'+idx+'-'+o)?.value||0)||0; });
+  const remaining=totalQty>0?totalQty-allocated:null;
+  const statusEl=document.getElementById('alloc-status-'+idx);
+  if(statusEl){
+    if(remaining===null) statusEl.textContent='Allocated: '+allocated;
+    else if(remaining<0) statusEl.innerHTML='<span style="color:var(--err)">Over-allocated by '+Math.abs(remaining)+'</span>';
+    else if(remaining===0) statusEl.innerHTML='<span style="color:var(--ok)">✓ Fully allocated</span>';
+    else statusEl.textContent='Remaining: '+remaining+' of '+totalQty;
+  }
+}
+
+// ── PAID BY ──
+function setPaidBy(p){
+  hkhPaidBy=p;
+  ['HKH','HKSB','HKK','HKBJ','GGC','GGU','Yao','Jonathan','Ben'].forEach(x=>{
+    const b=document.getElementById('pby-'+x);
+    if(b) b.className='pay-btn'+(x===p?' a-bank':'');
+  });
+}
+
+// ── ALLOC MODE ──
+function setAllocMode(mode){
+  hkhAllocMode=mode;
+  document.getElementById('alloc-whole').style.display=mode==='whole'?'block':'none';
+  document.getElementById('alloc-split').style.display=mode==='split'?'block':'none';
+  document.getElementById('alloc-whole-btn').style.cssText='flex:1;padding:10px;border-radius:8px;font-family:'Syne',sans-serif;font-size:11px;font-weight:800;cursor:pointer;border:1.5px solid '+(mode==='whole'?'var(--ok);background:rgba(76,175,125,.1);color:var(--ok)':'var(--border);background:var(--s2);color:var(--muted)');
+  document.getElementById('alloc-split-btn').style.cssText='flex:1;padding:10px;border-radius:8px;font-family:'Syne',sans-serif;font-size:11px;font-weight:800;cursor:pointer;border:1.5px solid '+(mode==='split'?'var(--accent);background:rgba(232,197,71,.1);color:var(--accent)':'var(--border);background:var(--s2);color:var(--muted)');
+}
+
+function setWholeOutlet(o){
+  hkhWholeOutlet=o;
+  ['HKSB','HKK','HKBJ','GGC','GGU','HKH'].forEach(x=>{
+    const b=document.getElementById('wo-'+x);
+    if(b) b.className='pay-btn'+(x===o?' a-bank':'');
+  });
+}
+
+// ── HKH SAVE ──
+async function hkhSave(){
+  if(!hkhExtracted){ showToast('Extract invoice first'); return; }
+  if(!hkhPaidBy){ showToast('Select who paid'); return; }
+  if(hkhAllocMode==='whole'&&!hkhWholeOutlet){ showToast('Select outlet for whole invoice'); return; }
+
+  const items=(hkhExtracted.items||[]).filter(i=>i.desc||i.amount);
+  const OUTLETS=['HKSB','HKK','HKBJ','GGC','GGU','HKH'];
+
+  // Build allocation
+  let allocation=[];
+  if(hkhAllocMode==='whole'){
+    allocation=[{outlet:hkhWholeOutlet, amount:Number(hkhExtracted.total||0), items:'All items'}];
+  } else {
+    OUTLETS.forEach(o=>{
+      let outletTotal=0;
+      const outletItems=[];
+      items.forEach((item,idx)=>{
+        const qty=parseFloat(document.getElementById('alloc-'+idx+'-'+o)?.value||0)||0;
+        if(qty>0){
+          const lineAmt=qty*(item.unit_price||0)||(qty/parseFloat((item.qty||'1').replace(/[^0-9.]/g,''))||1)*item.amount;
+          outletTotal+=lineAmt;
+          outletItems.push({desc:item.desc,qty,unit_price:item.unit_price||0,amount:lineAmt});
+        }
+      });
+      if(outletItems.length>0) allocation.push({outlet:o,amount:outletTotal,items:outletItems});
+    });
+    if(allocation.length===0){ showToast('Allocate at least one item'); return; }
+  }
+
+  const record={
+    outlet:'HKH',
+    supplier:document.getElementById('hkh-supplier').value||hkhExtracted.supplier||'',
+    invoice_no:document.getElementById('hkh-invno').value||hkhExtracted.invoice_no||'',
+    date:document.getElementById('hkh-date').value||hkhExtracted.date||'',
+    total:Number(hkhExtracted.total||0),
+    items:hkhExtracted.items||[],
+    notes:hkhExtracted.notes||'',
+    payment_status:'unpaid',
+    doc_type:'invoice',
+    paid_by:hkhPaidBy,
+    allocation:JSON.stringify(allocation),
+    saved_at:new Date().toISOString()
+  };
+
+  try {
+    const r=await fetch('/api/invoices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(record)});
+    const j=await r.json();
+    if(!j.success) throw new Error(j.error);
+    hkhLog.unshift(j.data);
+    showToast('HKH Invoice saved ✓');
+    hkhReset();
+    renderHKHLog();
+  } catch(e){ showToast('Save failed: '+e.message); }
+}
+
+function hkhReset(){
+  hkhFiles=[]; hkhExtracted=null; hkhPaidBy=''; hkhWholeOutlet=''; hkhAllocMode='whole';
+  document.getElementById('hkh-extracted').style.display='none';
+  document.getElementById('hkh-btn-extract').disabled=true;
+  document.getElementById('hkh-fileInput').value='';
+  document.getElementById('hkh-cameraInput').value='';
+  hkhUpdateStack();
+  setAllocMode('whole');
+}
+
+// ── HKH LOG ──
+async function loadHKHLog(){
+  try {
+    const r=await fetch('/api/invoices');
+    const j=await r.json();
+    if(j.success) hkhLog=(j.data||[]).filter(e=>e.outlet==='HKH');
+  } catch(e){}
+}
+
+function renderHKHLog(){
+  const list=document.getElementById('hkh-log-list');
+  if(!hkhLog.length){ list.innerHTML='<div class="empty"><div class="ico">🏢</div><p>No HKH invoices yet.</p></div>'; return; }
+  list.innerHTML='';
+  hkhLog.forEach(e=>{
+    let allocation=[];
+    try{ allocation=JSON.parse(e.allocation||'[]'); }catch(err){}
+    const div=document.createElement('div');
+    div.style.cssText='background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;cursor:pointer';
+    div.innerHTML=
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">'+
+        '<div>'+
+          '<div style="font-size:13px;font-weight:600">'+(e.supplier||'—')+'</div>'+
+          '<div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:2px">'+(e.invoice_no||'—')+' · '+fmtD(e.date)+'</div>'+
+        '</div>'+
+        '<div style="text-align:right">'+
+          '<div style="font-family:'DM Mono',monospace;font-size:14px;color:var(--accent)">RM '+Number(e.total).toFixed(2)+'</div>'+
+          '<div style="font-size:10px;color:var(--muted);margin-top:2px">Paid by: '+(e.paid_by||'—')+'</div>'+
+        '</div>'+
+      '</div>'+
+      (allocation.length?'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'+
+        allocation.map(a=>'<span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(232,197,71,.1);color:var(--accent);border:1px solid rgba(232,197,71,.2)">'+a.outlet+' RM '+Number(a.amount).toFixed(2)+'</span>').join('')+
+      '</div>':'');
+    div.addEventListener('click',()=>openHKHDetail(e.id));
+    list.appendChild(div);
+  });
+}
+
+function openHKHDetail(id){
+  activeId=id;
+  const e=hkhLog.find(x=>x.id==id);
+  if(!e) return;
+  let allocation=[];
+  try{ allocation=JSON.parse(e.allocation||'[]'); }catch(err){}
+  const allocHtml=allocation.map(a=>'<div class="mfrow"><span class="k">'+a.outlet+'</span><span class="v">RM '+Number(a.amount).toFixed(2)+'</span></div>').join('');
+  document.getElementById('modal-body').innerHTML=
+    '<div class="mfrow"><span class="k">Supplier</span><span class="v">'+(e.supplier||'—')+'</span></div>'+
+    '<div class="mfrow"><span class="k">Inv No.</span><span class="v">'+(e.invoice_no||'—')+'</span></div>'+
+    '<div class="mfrow"><span class="k">Date</span><span class="v">'+fmtD(e.date)+'</span></div>'+
+    '<div class="mfrow"><span class="k">Total</span><span class="v" style="color:var(--accent);font-size:15px">RM '+Number(e.total).toFixed(2)+'</span></div>'+
+    '<div class="mfrow"><span class="k">Paid By</span><span class="v" style="color:var(--accent)">'+(e.paid_by||'—')+'</span></div>'+
+    (allocHtml?'<div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:10px 0 6px">Cost Allocation</div>'+allocHtml:'')+
+    '<div class="mfrow"><span class="k">Payment</span><span class="v"><select id="pay-sel" onchange="updatePay(''+e.id+'',this.value)">'+
+      ['unpaid','cash','bank','cheque'].map(s=>'<option value="'+s+'"'+(( e.payment_status||'unpaid')===s?' selected':'')+'>'+({unpaid:'🔴 Unpaid',cash:'🟡 Cash Paid',bank:'🟢 Bank Transfer',cheque:'🔵 Cheque'}[s])+'</option>').join('')+
+    '</select></span></div>';
+  document.getElementById('modal-overlay').style.display='block';
+  document.body.style.overflow='hidden';
+}
+
+// ── HKH EXPORT ──
+function exportHKHCSV(){
+  if(!hkhLog.length){ showToast('No HKH data'); return; }
+  const rows=[['Supplier','Invoice No','Date','Total RM','Paid By','Outlet','Allocated Amount','Payment Status']];
+  hkhLog.forEach(e=>{
+    let allocation=[];
+    try{ allocation=JSON.parse(e.allocation||'[]'); }catch(err){}
+    if(allocation.length){
+      allocation.forEach(a=>{
+        rows.push([e.supplier,e.invoice_no||'',fmtD(e.date),Number(e.total).toFixed(2),e.paid_by||'',a.outlet,Number(a.amount).toFixed(2),e.payment_status||'unpaid']);
+      });
+    } else {
+      rows.push([e.supplier,e.invoice_no||'',fmtD(e.date),Number(e.total).toFixed(2),e.paid_by||'','',Number(e.total).toFixed(2),e.payment_status||'unpaid']);
+    }
+  });
+  dlCSV(rows,'HKH_Invoices_'+today()+'.csv');
+  showToast('HKH exported ✓');
+}
+
 checkSession();
+
 </script>
 </body>
 </html>
