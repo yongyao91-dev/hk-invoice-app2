@@ -400,7 +400,12 @@ async function doLogin(){
   userRole=key==='ADMIN'?'admin':(key==='HKH'?'hkh':'staff');
   userOutlet=key==='ADMIN'?'ALL':key;
   sessionStorage.setItem('hkSession',JSON.stringify({role:userRole,outlet:userOutlet}));
-  startApp();
+  try {
+    startApp();
+  } catch(e) {
+    document.getElementById('login-err').textContent='Error: '+e.message;
+    console.error(e);
+  }
 }
 
 
