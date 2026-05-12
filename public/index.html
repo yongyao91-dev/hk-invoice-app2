@@ -969,8 +969,9 @@ function setAllocMode(mode){
   hkhAllocMode=mode;
   document.getElementById('alloc-whole').style.display=mode==='whole'?'block':'none';
   document.getElementById('alloc-split').style.display=mode==='split'?'block':'none';
-  document.getElementById('alloc-whole-btn').style.cssText='flex:1;padding:10px;border-radius:8px;font-family:'Syne',sans-serif;font-size:11px;font-weight:800;cursor:pointer;border:1.5px solid '+(mode==='whole'?'var(--ok);background:rgba(76,175,125,.1);color:var(--ok)':'var(--border);background:var(--s2);color:var(--muted)');
-  document.getElementById('alloc-split-btn').style.cssText='flex:1;padding:10px;border-radius:8px;font-family:'Syne',sans-serif;font-size:11px;font-weight:800;cursor:pointer;border:1.5px solid '+(mode==='split'?'var(--accent);background:rgba(232,197,71,.1);color:var(--accent)':'var(--border);background:var(--s2);color:var(--muted)');
+  const baseStyle="flex:1;padding:10px;border-radius:8px;font-family:'Syne',sans-serif;font-size:11px;font-weight:800;cursor:pointer;border:1.5px solid ";
+  document.getElementById('alloc-whole-btn').style.cssText=baseStyle+(mode==='whole'?'var(--ok);background:rgba(76,175,125,.1);color:var(--ok)':'var(--border);background:var(--s2);color:var(--muted)');
+  document.getElementById('alloc-split-btn').style.cssText=baseStyle+(mode==='split'?'var(--accent);background:rgba(232,197,71,.1);color:var(--accent)':'var(--border);background:var(--s2);color:var(--muted)');
 }
 
 function setWholeOutlet(o){
@@ -1069,10 +1070,10 @@ function renderHKHLog(){
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">'+
         '<div>'+
           '<div style="font-size:13px;font-weight:600">'+(e.supplier||'—')+'</div>'+
-          '<div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:2px">'+(e.invoice_no||'—')+' · '+fmtD(e.date)+'</div>'+
+          '<div style="font-size:10px;font-family:monospace;color:var(--muted);margin-top:2px">'+(e.invoice_no||'—')+' · '+fmtD(e.date)+'</div>'+
         '</div>'+
         '<div style="text-align:right">'+
-          '<div style="font-family:'DM Mono',monospace;font-size:14px;color:var(--accent)">RM '+Number(e.total).toFixed(2)+'</div>'+
+          '<div style="font-family:monospace;font-size:14px;color:var(--accent)">RM '+Number(e.total).toFixed(2)+'</div>'+
           '<div style="font-size:10px;color:var(--muted);margin-top:2px">Paid by: '+(e.paid_by||'—')+'</div>'+
         '</div>'+
       '</div>'+
@@ -1098,7 +1099,7 @@ function openHKHDetail(id){
     '<div class="mfrow"><span class="k">Total</span><span class="v" style="color:var(--accent);font-size:15px">RM '+Number(e.total).toFixed(2)+'</span></div>'+
     '<div class="mfrow"><span class="k">Paid By</span><span class="v" style="color:var(--accent)">'+(e.paid_by||'—')+'</span></div>'+
     (allocHtml?'<div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:10px 0 6px">Cost Allocation</div>'+allocHtml:'')+
-    '<div class="mfrow"><span class="k">Payment</span><span class="v"><select id="pay-sel" onchange="updatePay(''+e.id+'',this.value)">'+
+    '<div class="mfrow"><span class="k">Payment</span><span class="v"><select id="pay-sel" onchange="updatePay('+JSON.stringify(e.id)+',this.value)">'+
       ['unpaid','cash','bank','cheque'].map(s=>'<option value="'+s+'"'+(( e.payment_status||'unpaid')===s?' selected':'')+'>'+({unpaid:'🔴 Unpaid',cash:'🟡 Cash Paid',bank:'🟢 Bank Transfer',cheque:'🔵 Cheque'}[s])+'</option>').join('')+
     '</select></span></div>';
   document.getElementById('modal-overlay').style.display='block';
